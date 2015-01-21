@@ -1281,6 +1281,10 @@ PDQ3 = ${PDQ3D}/pdq3_cpu.c ${PDQ3D}/pdq3_sys.c ${PDQ3D}/pdq3_stddev.c \
     ${PDQ3D}/pdq3_mem.c ${PDQ3D}/pdq3_debug.c ${PDQ3D}/pdq3_fdc.c 
 PDQ3_OPT = -I ${PDQ3D} -DUSE_SIM_IMD
 
+3B2D = 3B2
+3B2 = ${3B2D}/3b2_cpu.c ${3B2D}/3b2_uart.c ${3B2D}/3b2_if.c ${3B2D}/3b2_id.c \
+	${3B2D}/3b2_sys.c ${3B2D}/3b2_io.c ${3B2D}/3b2_sysdev.c
+3B2_OPT = -I ${3B2D} -DUSE_INT64
 
 #
 # Build everything (not the unsupported/incomplete simulators)
@@ -1581,3 +1585,8 @@ ${BIN}pdq3${EXE} : ${PDQ3} ${SIM}
 	${MKDIRBIN}
 	${CC} ${PDQ3} ${SIM} ${PDQ3_OPT} $(CC_OUTSPEC) ${LDFLAGS}
 
+3b2 : ${BIN}3b2${EXE}
+
+${BIN}3b2${EXE} : ${3B2} ${SIM}
+	${MKDIRBIN}
+	${CC} ${3B2} ${SIM} ${3B2_OPT} $(CC_OUTSPEC) ${LDFLAGS}
