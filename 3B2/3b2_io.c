@@ -53,7 +53,13 @@ uint32 io_read(uint32 pa, uint8 size)
     /* Special devices */
     switch(pa) {
     case 0x4c003: /* MEMSIZE register */
-        return 1; /* TODO: Discover what this means. MB? KB? */
+        /* It appears that the following values map to memory sizes:
+           0x00: 512KB (  524,288 B)
+           0x01: 2MB   (2,097,152 B)
+           0x02: 1MB   (1,048,576 B)
+           0x03: 4MB   (4,194,304 B)
+        */
+        return 3;
     }
 
     /* IO Board Area - Unimplemented */
