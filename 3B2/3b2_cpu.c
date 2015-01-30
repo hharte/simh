@@ -30,7 +30,7 @@
 #include "rom_400_bin.h"
 
 /* Main memory. */
-uint8 *M = NULL;
+uint32 *M = NULL;
 
 /* Circular buffer of instructions */
 instr *INST;
@@ -508,12 +508,12 @@ t_stat cpu_reset(DEVICE *dptr)
 {
     /* Allocate memory */
     if (M == NULL) {
-        M = (uint8 *) calloc(MEMSIZE, sizeof(uint8));
+        M = (uint32 *) calloc(MEMSIZE >> 2, sizeof(uint32));
         if (M == NULL) {
             return SCPE_MEM;
         }
 
-        memset(M, 0, MEMSIZE);
+        memset(M, 0, MEMSIZE >> 2);
     }
 
     if (INST == NULL) {
@@ -783,7 +783,7 @@ void cpu_show_operand(FILE *st, operand *op)
 
 t_stat cpu_set_size(UNIT *uptr, int32 val, char *cptr, void *desc)
 {
-    uint8 *nM = NULL;
+    uint32 *nM = NULL;
     uint32 uval = (uint32) val;
 
     if ((val <= 0) || (val > MAXMEMSIZE)) {
@@ -792,7 +792,7 @@ t_stat cpu_set_size(UNIT *uptr, int32 val, char *cptr, void *desc)
 
     /* Do (re-)allocation for memory. */
 
-    nM = (uint8 *) calloc (uval, sizeof (uint8));
+    nM = (uint32 *) calloc(uval >> 2, sizeof(uint32));
 
     if (nM == NULL) {
         return SCPE_MEM;
@@ -800,9 +800,9 @@ t_stat cpu_set_size(UNIT *uptr, int32 val, char *cptr, void *desc)
 
     free (M);
     M = nM;
-    MEMSIZE = val;
+    MEMSIZE = uval;
 
-    memset(M, 0, MEMSIZE);
+    memset(M, 0, MEMSIZE >> 2);
 
     return SCPE_OK;
 }
@@ -2637,7 +2637,8 @@ static SIM_INLINE t_bool addr_is_mem(uint32 pa)
 
 static SIM_INLINE t_bool addr_is_io(uint32 pa)
 {
-    return (pa >= IO_BASE && pa < IO_BASE + IO_SIZE);
+    return ((pa >= IO_BASE && pa < IO_BASE + IO_SIZE) ||
+            (pa >= IOB_BASE && pa < IOB_BASE + IOB_SIZE));
 }
 
 static SIM_INLINE t_bool op_is_psw(operand *op)
@@ -2683,18 +2684,15 @@ uint32 pread_w(uint32 pa)
     }
 
     if (addr_is_rom(pa)) {
-        index = pa;
+        index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = (pa - PHYS_MEM_BASE) + ROM_SIZE;
+        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return 0;
     }
 
-    return (M[index]   << 24 |
-            M[index+1] << 16 |
-            M[index+2] << 8  |
-            M[index+3]);
+    return M[index];
 }
 
 /*
@@ -2716,17 +2714,14 @@ void pwrite_w(uint32 pa, uint32 val)
     }
 
     if (addr_is_rom(pa)) {
-        index = pa;
+        index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = (pa - PHYS_MEM_BASE) + ROM_SIZE;
+        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
     }
 
-    M[index]   = (val >> 24) & 0xff;
-    M[index+1] = (val >> 16) & 0xff;
-    M[index+2] = (val >> 8)  & 0xff;
-    M[index+3] = val & 0xff;
+    M[index]   = val;
 }
 
 /*
@@ -2745,16 +2740,19 @@ uint16 pread_h(uint32 pa)
     }
 
     if (addr_is_rom(pa)) {
-        index = pa;
+        index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = (pa - PHYS_MEM_BASE) + ROM_SIZE;
+        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return 0;
     }
 
-    return (M[index]   << 8 |
-            M[index+1]);
+    if (pa & 2) {
+        return M[index] & HALF_MASK;
+    } else {
+        return (M[index] >> 16) & HALF_MASK;
+    }
 }
 
 /*
@@ -2763,6 +2761,7 @@ uint16 pread_h(uint32 pa)
 void pwrite_h(uint32 pa, uint16 val)
 {
     uint32 index;
+    uint32 wval = (uint32)val;
 
     if (pa & 1) {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
@@ -2775,16 +2774,19 @@ void pwrite_h(uint32 pa, uint16 val)
     }
 
     if (addr_is_rom(pa)) {
-        index = pa;
+        index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = (pa - PHYS_MEM_BASE) + ROM_SIZE;
+        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return;
     }
 
-    M[index]   = (val >> 8) & 0xff;
-    M[index+1] = val & 0xff;
+    if (pa & 2) {
+        M[index] = (M[index] & ~HALF_MASK) | wval;
+    } else {
+        M[index] = (M[index] & HALF_MASK) | (wval << 16);
+    }
 }
 
 /*
@@ -2792,18 +2794,23 @@ void pwrite_h(uint32 pa, uint16 val)
  */
 uint8 pread_b(uint32 pa)
 {
+    int32 data;
+    int32 sc = (~(pa & 3) << 3) & 0x1f;
+
     if (addr_is_io(pa)) {
         return io_read(pa, 8);
     }
 
     if (addr_is_rom(pa)) {
-        return M[pa];
+        data = M[pa >> 2];
     } else if (addr_is_mem(pa)) {
-        return M[(pa - PHYS_MEM_BASE) + ROM_SIZE];
+        data = M[((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2];
     } else {
-        /* cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT); */
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return 0;
     }
+
+    return (data >> sc) & BYTE_MASK;
 }
 
 /*
@@ -2811,16 +2818,25 @@ uint8 pread_b(uint32 pa)
  */
 void pwrite_b(uint32 pa, uint8 val)
 {
+    int32 index;
+    int32 sc = (~(pa & 3) << 3) & 0x1f;
+    int32 mask = 0xff << sc;
+
     if (addr_is_io(pa)) {
         io_write(pa, val, 8);
         return;
     }
 
     if (addr_is_rom(pa)) {
-        M[pa] = val;
+        index = pa >> 2; 
     } else if (addr_is_mem(pa)) {
-        M[(pa - PHYS_MEM_BASE) + ROM_SIZE] = val;
+        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
     } else {
-        /* cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT); */
+        sim_debug(WRITE_MSG, &cpu_dev,
+                  ">>> Address is neither ROM nor MEM. pa=%08x\n", pa);
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+        return;
     }
+
+    M[index] = (M[index] & ~mask) | (val << sc);
 }

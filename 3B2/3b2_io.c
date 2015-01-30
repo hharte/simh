@@ -56,6 +56,11 @@ uint32 io_read(uint32 pa, uint8 size)
         return 1; /* TODO: Discover what this means. MB? KB? */
     }
 
+    /* IO Board Area - Unimplemented */
+    if (pa >= 0x200000 && pa < 0x2000000) {
+        return 0;
+    }
+
     for (p = &iotable[0]; p->low != 0; p++) {
         if ((pa >= p->low) && (pa < p->high) && p->read) {
             return p->read(pa, size);
@@ -74,6 +79,11 @@ uint32 io_read(uint32 pa, uint8 size)
 void io_write(int32 pa, int32 val, uint8 size)
 {
     struct iolink *p;
+
+    /* IO Board Area - Unimplemented */
+    if (pa >= 0x200000 && pa < 0x2000000) {
+        return;
+    }
 
     for (p = &iotable[0]; p->low != 0; p++) {
         if ((pa >= p->low) && (pa < p->high) && p->write) {
