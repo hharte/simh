@@ -213,8 +213,7 @@ uint32 uart_read(uint32 pa, uint8 size)
         u.c_en = FALSE;
         u.istat &= ~ISTS_CRI;
         break;
-    case 0x11: /* Unknown register in the memory map */
-        sim_debug(READ_MSG, &uart_dev, ">>> Unknown device at 49011.\n");
+    case 0x11: /* Clear DMAC interrupt */
         break;
     default:
         data = 0;

@@ -35,7 +35,7 @@
 #define MAX_HIST_SIZE  50000
 #define DEF_HIST_SIZE  100
 #define MAXMEMSIZE	   (1 << 22)             /* 4 MB */
-#define MEMSIZE		   (cpu_unit.capac)		 /* actual memory size */
+#define MEM_SIZE       (cpu_unit.capac)		 /* actual memory size */
 #define UNIT_V_MSIZE   (UNIT_V_UF)
 
 #define UNIT_MSIZE     (1 << UNIT_V_MSIZE)

@@ -29,8 +29,11 @@
 #include "3b2_cpu.h"
 #include "rom_400_bin.h"
 
+/* RO memory. */
+uint32 *ROM = NULL;
+
 /* Main memory. */
-uint32 *M = NULL;
+uint32 *RAM = NULL;
 
 /* Circular buffer of instructions */
 instr *INST;
@@ -433,7 +436,7 @@ void cpu_load_rom()
 {
     uint32 i;
 
-    if (M == NULL) {
+    if (ROM == NULL) {
         return;
     }
 
@@ -462,13 +465,13 @@ t_stat cpu_boot(int32 unit_num, DEVICE *dptr)
 
     cpu_mmu_en = FALSE;
 
-    R[NUM_PCBP] = pread_addr(0x80);
+    R[NUM_PCBP] = pread_w_u(0x80);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PCBP: %08x\n", R[NUM_PCBP]);
 
-    R[NUM_PSW] = pread_addr(R[NUM_PCBP]);
+    R[NUM_PSW] = pread_w_u(R[NUM_PCBP]);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PSW: %08x\n", R[NUM_PSW]);
 
-    R[NUM_PC] = pread_addr(R[NUM_PCBP] + 4);
+    R[NUM_PC] = pread_w_u(R[NUM_PCBP] + 4);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PC: %08x\n", R[NUM_PC]);
 
     return SCPE_OK;
@@ -507,13 +510,22 @@ t_stat cpu_dep(t_value val, t_addr addr, UNIT *uptr, int32 sw)
 t_stat cpu_reset(DEVICE *dptr)
 {
     /* Allocate memory */
-    if (M == NULL) {
-        M = (uint32 *) calloc(MEMSIZE >> 2, sizeof(uint32));
-        if (M == NULL) {
+    if (ROM == NULL) {
+        ROM = (uint32 *) calloc(ROM_SIZE >> 2, sizeof(uint32));
+        if (ROM == NULL) {
             return SCPE_MEM;
         }
 
-        memset(M, 0, MEMSIZE >> 2);
+        memset(ROM, 0, ROM_SIZE >> 2);
+    }
+
+    if (RAM == NULL) {
+        RAM = (uint32 *) calloc(MEM_SIZE >> 2, sizeof(uint32));
+        if (RAM == NULL) {
+            return SCPE_MEM;
+        }
+
+        memset(RAM, 0, MEM_SIZE >> 2);
     }
 
     if (INST == NULL) {
@@ -783,7 +795,7 @@ void cpu_show_operand(FILE *st, operand *op)
 
 t_stat cpu_set_size(UNIT *uptr, int32 val, char *cptr, void *desc)
 {
-    uint32 *nM = NULL;
+    uint32 *nRAM = NULL;
     uint32 uval = (uint32) val;
 
     if ((val <= 0) || (val > MAXMEMSIZE)) {
@@ -792,17 +804,18 @@ t_stat cpu_set_size(UNIT *uptr, int32 val, char *cptr, void *desc)
 
     /* Do (re-)allocation for memory. */
 
-    nM = (uint32 *) calloc(uval >> 2, sizeof(uint32));
+    nRAM = (uint32 *) calloc(uval >> 2, sizeof(uint32));
 
-    if (nM == NULL) {
+    if (nRAM == NULL) {
         return SCPE_MEM;
     }
 
-    free (M);
-    M = nM;
-    MEMSIZE = uval;
+    free(RAM);
+    RAM = nRAM;
 
-    memset(M, 0, MEMSIZE >> 2);
+    MEM_SIZE = uval;
+
+    memset(RAM, 0, MEM_SIZE >> 2);
 
     return SCPE_OK;
 }
@@ -1684,11 +1697,10 @@ t_stat sim_instr(void)
             cpu_set_flags(tmp_a, dst, FALSE, FALSE);
             break;
         case MOVBLW:
-            while (R[2] > 0) {
-                pwrite_w(R[1], pread_w(R[0]));
+            while (--R[2] > 0) {
+                pwrite_w_u(R[1], pread_w_u(R[0]));
                 R[0] += 4;
                 R[1] += 4;
-                R[2]--;
             }
             break;
         case MOVAW:
@@ -2632,7 +2644,7 @@ static SIM_INLINE t_bool addr_is_rom(uint32 pa)
 static SIM_INLINE t_bool addr_is_mem(uint32 pa)
 {
     return (pa >= PHYS_MEM_BASE &&
-            pa < PHYS_MEM_BASE + (MEMSIZE - ROM_SIZE));
+            pa < (PHYS_MEM_BASE + MEM_SIZE));
 }
 
 static SIM_INLINE t_bool addr_is_io(uint32 pa)
@@ -2655,15 +2667,31 @@ static SIM_INLINE t_bool op_is_psw(operand *op)
  */
 
 /*
- * Read a 32-bit address (pointer) from physical memory, regardless of
- * alignment.
+ * Read Word (Physical Address, Unaligned)
  */
-uint32 pread_addr(uint32 pa)
+uint32 pread_w_u(uint32 pa)
 {
-    return (pread_b(pa)     << 24 |
-            pread_b(pa + 1) << 16 |
-            pread_b(pa + 2) << 8  |
-            pread_b(pa + 3));
+    uint32 *m;
+    uint32 index;
+
+    if (addr_is_io(pa)) {
+        return io_read(pa, 32);
+    }
+
+    if (addr_is_rom(pa)) {
+        m = ROM;
+        index = pa >> 2;
+    } else if (addr_is_mem(pa)) {
+        m = RAM;
+        index = (pa - PHYS_MEM_BASE) >> 2;
+    } else {
+        sim_debug(READ_MSG, &cpu_dev,
+                  "Cannot read from address %08x!\n", pa);
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+        return 0;
+    }
+
+    return m[index];
 }
 
 /*
@@ -2671,42 +2699,22 @@ uint32 pread_addr(uint32 pa)
  */
 uint32 pread_w(uint32 pa)
 {
-    uint32 index;
-
     /* Alignment exception */
     if (pa & 3) {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return 0;
     }
 
-    if (addr_is_io(pa)) {
-        return io_read(pa, 32);
-    }
-
-    if (addr_is_rom(pa)) {
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
-        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
-    } else {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return 0;
-    }
-
-    return M[index];
+    return pread_w_u(pa);
 }
 
 /*
- * Write Word (Physical Address)
+ * Write Word (Physical Address, Unaligned)
  */
-void pwrite_w(uint32 pa, uint32 val)
+void pwrite_w_u(uint32 pa, uint32 val)
 {
+    uint32 *m;
     uint32 index;
-
-    /* Alignment exception */
-    if (pa & 3) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return;
-    }
 
     if (addr_is_io(pa)) {
         io_write(pa, val, 32);
@@ -2714,14 +2722,32 @@ void pwrite_w(uint32 pa, uint32 val)
     }
 
     if (addr_is_rom(pa)) {
+        m = ROM;
         index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
+        m = RAM;
+        index = (pa - PHYS_MEM_BASE) >> 2;
     } else {
+        sim_debug(WRITE_MSG, &cpu_dev,
+                  "Cannot write to address %08x!\n", pa);
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
     }
 
-    M[index]   = val;
+    m[index] = val;
+}
+
+/*
+ * Write Word (Physical Address)
+ */
+void pwrite_w(uint32 pa, uint32 val)
+{
+    /* Alignment exception */
+    if (pa & 3) {
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+        return;
+    }
+
+    pwrite_w_u(pa, val);
 }
 
 /*
@@ -2729,6 +2755,7 @@ void pwrite_w(uint32 pa, uint32 val)
  */
 uint16 pread_h(uint32 pa)
 {
+    uint32 *m;
     uint32 index;
 
     if (pa & 1) {
@@ -2740,18 +2767,20 @@ uint16 pread_h(uint32 pa)
     }
 
     if (addr_is_rom(pa)) {
+        m = ROM;
         index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
+        m = RAM;
+        index = (pa - PHYS_MEM_BASE) >> 2;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return 0;
     }
 
     if (pa & 2) {
-        return M[index] & HALF_MASK;
+        return m[index] & HALF_MASK;
     } else {
-        return (M[index] >> 16) & HALF_MASK;
+        return (m[index] >> 16) & HALF_MASK;
     }
 }
 
@@ -2760,6 +2789,7 @@ uint16 pread_h(uint32 pa)
  */
 void pwrite_h(uint32 pa, uint16 val)
 {
+    uint32 *m;
     uint32 index;
     uint32 wval = (uint32)val;
 
@@ -2774,18 +2804,20 @@ void pwrite_h(uint32 pa, uint16 val)
     }
 
     if (addr_is_rom(pa)) {
+        m = ROM;
         index = pa >> 2;
     } else if (addr_is_mem(pa)) {
-        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
+        m = RAM;
+        index = (pa - PHYS_MEM_BASE) >> 2;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return;
     }
 
     if (pa & 2) {
-        M[index] = (M[index] & ~HALF_MASK) | wval;
+        m[index] = (m[index] & ~HALF_MASK) | wval;
     } else {
-        M[index] = (M[index] & HALF_MASK) | (wval << 16);
+        m[index] = (m[index] & HALF_MASK) | (wval << 16);
     }
 }
 
@@ -2802,9 +2834,9 @@ uint8 pread_b(uint32 pa)
     }
 
     if (addr_is_rom(pa)) {
-        data = M[pa >> 2];
+        data = ROM[pa >> 2];
     } else if (addr_is_mem(pa)) {
-        data = M[((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2];
+        data = RAM[(pa - PHYS_MEM_BASE) >> 2];
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return 0;
@@ -2818,6 +2850,7 @@ uint8 pread_b(uint32 pa)
  */
 void pwrite_b(uint32 pa, uint8 val)
 {
+    uint32 *m;
     int32 index;
     int32 sc = (~(pa & 3) << 3) & 0x1f;
     int32 mask = 0xff << sc;
@@ -2828,9 +2861,11 @@ void pwrite_b(uint32 pa, uint8 val)
     }
 
     if (addr_is_rom(pa)) {
+        m = ROM;
         index = pa >> 2; 
     } else if (addr_is_mem(pa)) {
-        index = ((pa - PHYS_MEM_BASE) + ROM_SIZE) >> 2;
+        m = RAM;
+        index = (pa - PHYS_MEM_BASE) >> 2;
     } else {
         sim_debug(WRITE_MSG, &cpu_dev,
                   ">>> Address is neither ROM nor MEM. pa=%08x\n", pa);
@@ -2838,5 +2873,5 @@ void pwrite_b(uint32 pa, uint8 val)
         return;
     }
 
-    M[index] = (M[index] & ~mask) | (val << sc);
+    m[index] = (m[index] & ~mask) | (val << sc);
 }

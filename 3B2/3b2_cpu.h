@@ -539,9 +539,11 @@ uint32 pread_addr(uint32 pa);
 uint8  pread_b(uint32 pa);
 uint16 pread_h(uint32 pa);
 uint32 pread_w(uint32 pa);
+uint32 pread_w_u(uint32 pa);
 void   pwrite_b(uint32 pa, uint8 val);
 void   pwrite_h(uint32 pa, uint16 val);
 void   pwrite_w(uint32 pa, uint32 val);
+void   pwrite_w_u(uint32 pa, uint32 val);
 
 uint8  vread_b(uint32 va);
 uint16 vread_h(uint32 va);

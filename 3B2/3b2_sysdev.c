@@ -36,11 +36,11 @@
 #include "3b2_sysdev.h"
 
 DEBTAB sys_deb_tab[] = {
-    { "INIT",       INIT_MSG,       "Init"           },
-    { "READ",       READ_MSG,       "Read activity"  },
-    { "WRITE",      WRITE_MSG,      "Write activity" },
+    { "INIT",       INIT_MSG,       "Init"             },
+    { "READ",       READ_MSG,       "Read activity"    },
+    { "WRITE",      WRITE_MSG,      "Write activity"   },
     { "EXECUTE",    EXECUTE_MSG,    "Execute activity" },
-    { NULL,         0                                      }
+    { NULL,         0                                  }
 };
 
 uint8 *NVRAM = NULL;
