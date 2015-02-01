@@ -218,7 +218,7 @@ mnemonic ops[256] = {
     {0x2d, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x2e,  0, OP_NONE, NA, "BPT",    -1, -1, -1, -1},
     {0x2f, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x30,  0, OP_NONE, NA, "???",    -1, -1, -1, -1}, /* Two-byte instructions */
+    {0x30, -1, OP_NONE, NA, "???",    -1, -1, -1, -1}, /* Two-byte instructions */
     {0x31, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x32,  1, OP_COPR, NA, "SPOP",   -1, -1, -1, -1},
     {0x33,  2, OP_COPR, NA, "SPOPWS", -1, -1, -1, -1},
@@ -1594,12 +1594,12 @@ t_stat sim_instr(void)
             tmp_a = cpu_read_op(src1);
             tmp_b = cpu_read_op(dst);
 
-            if (tmp_b == 0) {
+            if (tmp_a == 0) {
                 /* TODO: Divide By Zero error */
                 break;
             }
 
-            tmp_c = tmp_a / tmp_b;
+            tmp_c = tmp_b / tmp_a;
 
             cpu_write_op(dst, tmp_c);
             cpu_set_flags(tmp_c, dst, FALSE, FALSE);
@@ -1611,12 +1611,12 @@ t_stat sim_instr(void)
             tmp_a = cpu_read_op(src1);
             tmp_b = cpu_read_op(src2);
 
-            if (tmp_b == 0) {
+            if (tmp_a == 0) {
                 /* TODO: Divide By Zero error */
                 break;
             }
 
-            tmp_c = tmp_a / tmp_b;
+            tmp_c = tmp_b / tmp_a;
 
             cpu_write_op(dst, tmp_c);
             cpu_set_flags(tmp_c, dst, FALSE, FALSE);
@@ -1733,12 +1733,12 @@ t_stat sim_instr(void)
             tmp_a = cpu_read_op(src1);
             tmp_b = cpu_read_op(dst);
 
-            if (tmp_b == 0) {
+            if (tmp_a == 0) {
                 /* TODO: Divide By Zero error */
                 break;
             }
 
-            tmp_c = tmp_a % tmp_b;
+            tmp_c = tmp_b % tmp_a;
 
             cpu_write_op(dst, tmp_c);
             cpu_set_flags(tmp_c, dst, FALSE, FALSE);
@@ -1750,12 +1750,12 @@ t_stat sim_instr(void)
             tmp_a = cpu_read_op(src1);
             tmp_b = cpu_read_op(src2);
 
-            if (tmp_b == 0) {
+            if (tmp_a == 0) {
                 /* TODO: Divide By Zero error */
                 break;
             }
 
-            tmp_c = tmp_a % tmp_b;
+            tmp_c = tmp_b % tmp_a;
 
             cpu_write_op(dst, tmp_c);
             cpu_set_flags(tmp_c, dst, FALSE, FALSE);
