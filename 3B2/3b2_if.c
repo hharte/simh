@@ -82,12 +82,18 @@ uint32 if_read(uint32 pa, uint8 size) {
     UNIT *uptr;
     uint32 pc;
 
+    uptr = &(if_dev.units[0]);
     reg = pa - IFBASE;
     pc = R[NUM_PC];
 
     switch (reg) {
     case IF_STATUS_REG:
         data = if_state.status;
+        /* If there's no image attached, we're not ready */
+        if (uptr->fileref == NULL) {
+            sim_debug(READ_MSG, &if_dev, "Drive Not Ready\n");
+            data |= IF_NRDY;
+        }
         break;
     case IF_TRACK_REG:
         data = if_state.track;
@@ -96,10 +102,7 @@ uint32 if_read(uint32 pa, uint8 size) {
         data = if_state.sector;
         break;
     case IF_DATA_REG:
-        uptr = &(if_dev.units[0]);
-
         if (uptr->fileref == NULL) {
-            sim_debug(READ_MSG, &if_dev, "NOT ATTACHED\n");
             /* We are not attached */
             return 0;
         }
@@ -210,6 +213,8 @@ void if_write(uint32 pa, uint32 val, uint8 size)
     uint32 pos;
     UNIT *uptr;
 
+    uptr = &(if_dev.units[0]);
+
     reg = pa - IFBASE;
 
     pc = R[NUM_PC];
@@ -234,8 +239,6 @@ void if_write(uint32 pa, uint32 val, uint8 size)
             /* Not attached, or not a write command */
             break;
         }
-
-        uptr = &(if_dev.units[0]);
 
         if (if_buf_ptr < 0) {
             if_buf_ptr = 0;

@@ -217,7 +217,7 @@ void dmac_service_id(uint32 service_address)
     // TODO: implement
 }
 
-static SIM_INLINE uint32 dma_address(channel, offset) {
+static SIM_INLINE uint32 dma_address(uint8 channel, uint32 offset) {
     return (PHYS_MEM_BASE +
             dma_state.channels[channel].addr +
             (dma_state.channels[channel].page << 16) +
