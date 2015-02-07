@@ -2104,7 +2104,7 @@ static uint32 cpu_effective_address(operand * op)
 
     /* Word Displacement Deferred */
     if (op->mode == 9) {
-        return pread_w(R[op->reg] + (int32)op->embedded.w);
+        return pread_w_u(R[op->reg] + (int32)op->embedded.w);
     }
 
     /* Halfword Displacement */
@@ -2114,7 +2114,7 @@ static uint32 cpu_effective_address(operand * op)
 
     /* Halfword Displacement Deferred */
     if (op->mode == 11) {
-        return pread_w(R[op->reg] + (int16)op->embedded.h);
+        return pread_w_u(R[op->reg] + (int16)op->embedded.h);
     }
 
     /* Byte Displacement */
@@ -2124,7 +2124,7 @@ static uint32 cpu_effective_address(operand * op)
 
     /* Byte Displacement Deferred */
     if (op->mode == 13) {
-        return pread_w(R[op->reg] + (int8)op->embedded.b);
+        return pread_w_u(R[op->reg] + (int8)op->embedded.b);
     }
 
     sim_debug(DECODE_MSG, &cpu_dev,
@@ -2246,7 +2246,7 @@ static int32 cpu_read_op(operand * op)
     switch (op_type(op)) {
     case WD: /* Signed Word */
     case UW: /* Unsigned Word */
-        data = pread_w(eff);
+        data = pread_w_u(eff);
         op->data = data;
         return data;
     case HW: /* Signed Halfword */
