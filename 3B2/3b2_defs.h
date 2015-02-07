@@ -190,10 +190,6 @@ extern DEBTAB sys_deb_tab[];
 /* global symbols from the DMAC */
 extern DEVICE dmac_dev;
 
-/* global symbols from the MMU */
-
-extern t_bool mmu_en;
-
 /* Globally scoped CPU functions */
 void cpu_set_exception(uint8 et, uint8 isc);
 void cpu_set_irq(uint16 ipl, uint8 id, t_bool nmi);
@@ -201,7 +197,5 @@ void cpu_set_irq(uint16 ipl, uint8 id, t_bool nmi);
 /* Globally scoped IO functions */
 uint32 io_read(uint32 pa, uint8 size);
 void io_write(int32 pa, int32 val, uint8 size);
-
-
 
 #endif

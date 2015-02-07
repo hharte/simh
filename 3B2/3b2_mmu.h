@@ -29,6 +29,10 @@
 
 #include "3b2_defs.h"
 
+typedef struct {
+    t_bool enabled;
+} MMU_STATE;
+
 uint8  pread_b(uint32 pa);
 uint16 pread_h(uint32 pa);
 uint32 pread_w(uint32 pa);
@@ -49,5 +53,8 @@ void   vwrite_w(uint32 va);
 t_bool addr_is_rom(uint32 pa);
 t_bool addr_is_mem(uint32 pa);
 t_bool addr_is_io(uint32 pa);
+
+void mmu_enable();
+void mmu_disable();
 
 #endif

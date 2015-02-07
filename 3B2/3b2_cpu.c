@@ -458,7 +458,7 @@ t_stat cpu_boot(int32 unit_num, DEVICE *dptr)
 
     cpu_load_rom();
 
-    mmu_en = FALSE;
+    mmu_disable();
 
     R[NUM_PCBP] = pread_w_u(0x80);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PCBP: %08x\n", R[NUM_PCBP]);

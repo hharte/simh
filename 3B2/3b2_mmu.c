@@ -59,7 +59,18 @@
  *
  *******************************************************************/
 
-t_bool mmu_en = FALSE;  /* MMU Enabled */
+MMU_STATE mmu_state;
+
+
+void mmu_enable()
+{
+    mmu_state.enabled = TRUE;
+}
+
+void mmu_disable()
+{
+    mmu_state.enabled = FALSE;
+}
 
 /*
  * TODO: MMU support. Currently only physical addresses are supported.
