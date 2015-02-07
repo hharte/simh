@@ -28,6 +28,7 @@
 #ifndef _3B2_SYSDEV_H_
 #define _3B2_SYSDEV_H_
 
+#include "3b2_sys.h"
 #include "3b2_defs.h"
 #include "3b2_cpu.h"
 
@@ -37,18 +38,6 @@
 #define NVRAMSIZE 0x1000
 #define CSRBASE   0x44000
 #define CSRSIZE   0x100
-
-/* DMA */
-#define DMAIDBASE  0x45000
-#define DMAIDSIZE  0x100
-#define DMAIUABASE 0x46000
-#define DMAIUASIZE 0x100
-#define DMAIUBBASE 0x46000
-#define DMAIUBSIZE 0x100
-#define DMACBASE   0x48000
-#define DMACSIZE   0x100
-#define DMAIFBASE  0x4E000
-#define DMAIFSIZE  0x100
 
 #define CSRTIMO   0x8000
 #define CSRPARE   0x4000
@@ -69,7 +58,6 @@
 extern DEVICE nvram_dev;
 extern DEVICE timer_dev;
 extern DEVICE csr_dev;
-extern DEVICE dmac_dev;
 extern DEBTAB sys_deb_tab[];
 
 /* NVRAM */
@@ -91,14 +79,5 @@ t_stat csr_dep(t_value val, t_addr exta, UNIT *uptr, int32 sw);
 t_stat csr_reset(DEVICE *dptr);
 uint32 csr_read(uint32 pa, uint8 size);
 void csr_write(uint32 pa, uint32 val, uint8 size);
-
-/* DMAC */
-t_stat dmac_reset(DEVICE *dptr);
-uint32 dmac_read(uint32 pa, uint8 size);
-void dmac_write(uint32 pa, uint32 val, uint8 size);
-
-/* Main system device IO routines */
-uint32 io_read(uint32 pa, uint8 size);
-void io_write(int32 pa, int32 val, uint8 size);
 
 #endif

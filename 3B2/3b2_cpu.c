@@ -1,4 +1,4 @@
-/* 3b2_cpu.h: AT&T 3B2 Model 400 CPU (WE32100) Implementation
+/* 3b2_cpu.c: AT&T 3B2 Model 400 CPU (WE32100) Implementation
 
    Copyright (c) 2015, Seth J. Morabito
 
@@ -48,7 +48,6 @@ uint32 R[16];
 /* Other global CPU state */
 t_bool cpu_trap      = FALSE;  /* Trap occured */
 t_bool cpu_exception = FALSE;  /* Fault occured */
-t_bool cpu_mmu_en    = FALSE;  /* MMU Enabled */
 int8   cpu_dtype     = -1;     /* Default datatype for the current
                                   instruction */
 int8   cpu_etype     = -1;     /* Currently set expanded datatype */
@@ -57,7 +56,7 @@ int16  cpu_irq_ipl   = -1;     /* If set, the IRQ level */
 uint8  cpu_irq_id    = 0;      /* IRQ ID */
 t_bool cpu_nmi       = FALSE;  /* If set, there has been an NMI */
 
-/* cpu_mmu_en is controlled by ENBVJMP and DISVJMP */
+/* mmu_en is controlled by ENBVJMP and DISVJMP */
 
 BITFIELD psw_bits[] = {
     BITFFMT(ET,2,%d),    /* Exception Type */
@@ -194,7 +193,7 @@ mnemonic ops[256] = {
     {0x15, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x16, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x17,  2, OP_COPR, NA, "SPOPWT", -1, -1, -1, -1},
-    {0x18,  1, OP_DESC, NA, "RESTORE",-1, -1, -1, -1},
+    {0x18,  1, OP_DESC, WD, "RESTORE", 0, -1, -1, -1},
     {0x19, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x1a, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x1b, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
@@ -362,7 +361,7 @@ mnemonic ops[256] = {
     {0xbd, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0xbe,  2, OP_DESC, HW, "SUBH2",   0, -1, -1,  1},
     {0xbf,  2, OP_DESC, BT, "SUBB2",   0, -1, -1,  1},
-    {0xc0,  3, OP_DESC, WD, "ALSW3",  -1, -1, -1, -1},
+    {0xc0,  3, OP_DESC, WD, "ALSW3",   0,  1, -1,  2},
     {0xc1, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0xc2, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0xc3, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
@@ -448,10 +447,6 @@ void cpu_load_rom()
 t_stat cpu_boot(int32 unit_num, DEVICE *dptr)
 {
     /*
-     * TODO: Set initial state.
-     *
-     * Set PCBP, PSW, and PC as described in the manual.
-     *
      *  1. Change to physical address mode
      *  2. Fetch the word at physical address 0x80 and store it in
      *     the PCBP register.
@@ -463,7 +458,7 @@ t_stat cpu_boot(int32 unit_num, DEVICE *dptr)
 
     cpu_load_rom();
 
-    cpu_mmu_en = FALSE;
+    mmu_en = FALSE;
 
     R[NUM_PCBP] = pread_w_u(0x80);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PCBP: %08x\n", R[NUM_PCBP]);
@@ -1230,6 +1225,9 @@ t_stat sim_instr(void)
     /* Scratch space */
     uint32   tmp_a, tmp_b, tmp_c, tmp_d;
 
+    /* Used for field calculation */
+    uint32   width, offset, mask;
+
     uint8 len = 0;
 
     operand *src1, *src2, *src3, *dst;
@@ -1260,6 +1258,9 @@ t_stat sim_instr(void)
                 continue;
             }
         }
+
+        /* Process DMA requests */
+        dmac_service_drqs();
 
         sim_interval--;
 
@@ -1625,15 +1626,16 @@ t_stat sim_instr(void)
         case EXTFW:
         case EXTFH:
         case EXTFB:
-            tmp_a = cpu_read_op(src1) & 0x1f; /* Width */
-            tmp_b = cpu_read_op(src2) & 0x1f; /* Offset */
-            tmp_c = cpu_read_op(src3);        /* Src */
+            width = (cpu_read_op(src1) & 0x1f) + 1;
+            offset = cpu_read_op(src2) & 0x1f;
+            tmp_a = cpu_read_op(src3);        /* src */
+            mask = (1 << width) - 1;
 
-            /* Mask = (1 << tmp_a) - 1 */
-            tmp_d = (tmp_c & ((1 << tmp_a) - 1) << tmp_b) >> tmp_b;
+            tmp_a &= (mask << offset);
+            tmp_a = tmp_a >> offset;
 
-            cpu_write_op(dst, tmp_d);
-            cpu_set_flags(tmp_d, dst, FALSE, FALSE);
+            cpu_write_op(dst, tmp_a);
+            cpu_set_flags(tmp_a, dst, FALSE, FALSE);
             break;
         case INCW:
             tmp_ul = cpu_read_op(dst) + 1;
@@ -1656,33 +1658,39 @@ t_stat sim_instr(void)
         case INSFW:
         case INSFH:
         case INSFB:
-            tmp_a = cpu_read_op(src1) & 0x1f; /* Width */
-            tmp_b = cpu_read_op(src2) & 0x1f; /* Offset */
-            tmp_c = cpu_read_op(src3);        /* src */
-            tmp_d = cpu_read_op(dst);         /* dst */
+            width = (cpu_read_op(src1) & 0x1f) + 1;
+            offset = cpu_read_op(src2) & 0x1f;
+            tmp_a = cpu_read_op(src3);        /* src */
+            tmp_b = cpu_read_op(dst);         /* dst */
+            mask = (1 << width) - 1;
 
-            /* Mask = (1 << tmp_a) - 1 */
+            tmp_a &= mask;
 
-            /* Mask out the bits in the destination that will be
-               copied */
-            tmp_d &= ~(((1 << tmp_a) - 1) << tmp_b);
+            tmp_b &= ~(mask << offset);
+            tmp_b |= (tmp_a << offset);
 
-            /* Or-in the source. */
-            tmp_d |= tmp_c & (((1 << tmp_a) - 1) << tmp_b);
+            cpu_write_op(dst, tmp_b);
 
-            cpu_write_op(dst, tmp_d);
-
-            cpu_set_flags(tmp_d, dst, FALSE, FALSE);
+            cpu_set_flags(tmp_b, dst, FALSE, FALSE);
             break;
         case JMP:
             R[NUM_PC] = cpu_effective_address(dst);
             continue;
+        case ALSW3:
         case LLSW3:
-        case LLSH3:
-        case LLSB3:
             tmp_ul = cpu_read_op(src2) << (cpu_read_op(src1) & 0x1f);
             cpu_write_op(dst, (uint32)(tmp_ul & WORD_MASK));
             cpu_set_flags(tmp_a, dst, tmp_ul > WORD_MASK, FALSE);
+            break;
+        case LLSH3:
+            tmp_a = cpu_read_op(src2) << (cpu_read_op(src1) & 0x1f);
+            cpu_write_op(dst, (uint16)(tmp_a & HALF_MASK));
+            cpu_set_flags(tmp_a, dst, tmp_a > HALF_MASK, FALSE);
+            break;
+        case LLSB3:
+            tmp_a = cpu_read_op(src2) << (cpu_read_op(src1) & 0x1f);
+            cpu_write_op(dst, (uint8)(tmp_a & BYTE_MASK));
+            cpu_set_flags(tmp_a, dst, tmp_a > BYTE_MASK, FALSE);
             break;
         case LRSW3:
             tmp_a = cpu_read_op(src2) >> (cpu_read_op(src1) & 0x1f);
@@ -1910,6 +1918,19 @@ t_stat sim_instr(void)
                           ((tmp_a & MSB) != (tmp_b & MSB)),
                           ((tmp_a & MSB) && !(tmp_b & MSB)));
             break;
+        case RESTORE:
+            tmp_a = R[NUM_FP] - 28;
+            tmp_b = pread_w(tmp_a);
+            tmp_c = R[NUM_FP] - 24;
+
+            for (tmp_d = src1->reg; tmp_d < NUM_FP; tmp_d++) {
+                R[tmp_d] = pread_w(tmp_c);
+                tmp_c += 4;
+            }
+
+            R[NUM_FP] = tmp_b;
+            R[NUM_SP] = tmp_a;
+            break;
         case RLEQ:
             if ((cpu_n_flag() | cpu_z_flag()) == 1) {
                 R[NUM_PC] = cpu_pop_word();
@@ -2063,7 +2084,7 @@ static uint32 cpu_effective_address(operand * op)
     /* Absolute Deferred */
     if (op->mode == 14 && op->reg == 15) {
         /* May cause exception */
-        return pread_w(op->embedded.w);
+        return pread_w_u(op->embedded.w);
     }
 
     /* FP Short Offset */
@@ -2594,284 +2615,7 @@ static uint32 irq_pop_word()
     return pread_w(R[NUM_ISP]);
 }
 
-
-/*******************************************************************
- * MMU Routines. Move into 3b2_mmu.c when ready.
- *******************************************************************/
-
-/*******************************************************************
- *
- * The WE32101 MMU divides the virtual address space into four
- * sections. Virtual address bits 30 and 31 determine the section.
- *
- * To initialize the MMU, the operating system must:
- *
- *   - Write SDTs
- *
- *
- * Vocabulary:
- *
- *    SID: Section ID. Can be one of 0, 1, 2, or 3
- *      - SSL: Segment Select. 8K segments within the section.
- *
- *        Continguous Segment Addressing:
- *          - SOT: Segment Offset. 128K addresses within segment.
- *
- *        Paged Segment Addressing:
- *          - PSL: Page Select. 64 pages within the section.
- *          - POT: Page Offset. 2K addresses within the page.
- *
- *    SD: Segment Descriptor. Both Contiguous and Paged addressing
- *        use Segment Descriptors located in a Segment Descriptor
- *        Table (SDT) to describe the physical layout of memory.
- *
- *    SDT: Segment Descriptor Table.
- *
- *    PDT: Page Descriptor Table.
- *    PD: Page Descriptor. When using Paged addressing,
- *
- *******************************************************************/
-
-/*
- * TODO: MMU support. Currently only physical addresses are supported.
- */
-
-static SIM_INLINE t_bool addr_is_rom(uint32 pa)
-{
-    return (pa < ROM_SIZE);
-}
-
-static SIM_INLINE t_bool addr_is_mem(uint32 pa)
-{
-    return (pa >= PHYS_MEM_BASE &&
-            pa < (PHYS_MEM_BASE + MEM_SIZE));
-}
-
-static SIM_INLINE t_bool addr_is_io(uint32 pa)
-{
-    return ((pa >= IO_BASE && pa < IO_BASE + IO_SIZE) ||
-            (pa >= IOB_BASE && pa < IOB_BASE + IOB_SIZE));
-}
-
 static SIM_INLINE t_bool op_is_psw(operand *op)
 {
     return (op->mode == 4 && op->reg == 11);
-}
-
-/*
- * Raw physical reads and writes.
- *
- * The WE32100 is a BIG-endian machine, meaning that words are
- * arranged in increasing address from most-significant byte to
- * least-significant byte.
- */
-
-/*
- * Read Word (Physical Address, Unaligned)
- */
-uint32 pread_w_u(uint32 pa)
-{
-    uint32 *m;
-    uint32 index;
-
-    if (addr_is_io(pa)) {
-        return io_read(pa, 32);
-    }
-
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
-        m = RAM;
-        index = (pa - PHYS_MEM_BASE) >> 2;
-    } else {
-        sim_debug(READ_MSG, &cpu_dev,
-                  "Cannot read from address %08x!\n", pa);
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return 0;
-    }
-
-    return m[index];
-}
-
-/*
- * Read Word (Physical Address)
- */
-uint32 pread_w(uint32 pa)
-{
-    /* Alignment exception */
-    if (pa & 3) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return 0;
-    }
-
-    return pread_w_u(pa);
-}
-
-/*
- * Write Word (Physical Address, Unaligned)
- */
-void pwrite_w_u(uint32 pa, uint32 val)
-{
-    uint32 *m;
-    uint32 index;
-
-    if (addr_is_io(pa)) {
-        io_write(pa, val, 32);
-        return;
-    }
-
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
-        m = RAM;
-        index = (pa - PHYS_MEM_BASE) >> 2;
-    } else {
-        sim_debug(WRITE_MSG, &cpu_dev,
-                  "Cannot write to address %08x!\n", pa);
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-    }
-
-    m[index] = val;
-}
-
-/*
- * Write Word (Physical Address)
- */
-void pwrite_w(uint32 pa, uint32 val)
-{
-    /* Alignment exception */
-    if (pa & 3) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return;
-    }
-
-    pwrite_w_u(pa, val);
-}
-
-/*
- * Read Halfword (Physical Address)
- */
-uint16 pread_h(uint32 pa)
-{
-    uint32 *m;
-    uint32 index;
-
-    if (pa & 1) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-    }
-
-    if (addr_is_io(pa)) {
-        return io_read(pa, 16);
-    }
-
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
-        m = RAM;
-        index = (pa - PHYS_MEM_BASE) >> 2;
-    } else {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return 0;
-    }
-
-    if (pa & 2) {
-        return m[index] & HALF_MASK;
-    } else {
-        return (m[index] >> 16) & HALF_MASK;
-    }
-}
-
-/*
- * Write Halfword (Physical Address)
- */
-void pwrite_h(uint32 pa, uint16 val)
-{
-    uint32 *m;
-    uint32 index;
-    uint32 wval = (uint32)val;
-
-    if (pa & 1) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return;
-    }
-
-    if (addr_is_io(pa)) {
-        io_write(pa, val, 16);
-        return;
-    }
-
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
-        m = RAM;
-        index = (pa - PHYS_MEM_BASE) >> 2;
-    } else {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return;
-    }
-
-    if (pa & 2) {
-        m[index] = (m[index] & ~HALF_MASK) | wval;
-    } else {
-        m[index] = (m[index] & HALF_MASK) | (wval << 16);
-    }
-}
-
-/*
- * Read Byte (Physical Address)
- */
-uint8 pread_b(uint32 pa)
-{
-    int32 data;
-    int32 sc = (~(pa & 3) << 3) & 0x1f;
-
-    if (addr_is_io(pa)) {
-        return io_read(pa, 8);
-    }
-
-    if (addr_is_rom(pa)) {
-        data = ROM[pa >> 2];
-    } else if (addr_is_mem(pa)) {
-        data = RAM[(pa - PHYS_MEM_BASE) >> 2];
-    } else {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return 0;
-    }
-
-    return (data >> sc) & BYTE_MASK;
-}
-
-/*
- * Write Byte (Physical Address)
- */
-void pwrite_b(uint32 pa, uint8 val)
-{
-    uint32 *m;
-    int32 index;
-    int32 sc = (~(pa & 3) << 3) & 0x1f;
-    int32 mask = 0xff << sc;
-
-    if (addr_is_io(pa)) {
-        io_write(pa, val, 8);
-        return;
-    }
-
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2; 
-    } else if (addr_is_mem(pa)) {
-        m = RAM;
-        index = (pa - PHYS_MEM_BASE) >> 2;
-    } else {
-        sim_debug(WRITE_MSG, &cpu_dev,
-                  ">>> Address is neither ROM nor MEM. pa=%08x\n", pa);
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return;
-    }
-
-    m[index] = (m[index] & ~mask) | (val << sc);
 }

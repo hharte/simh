@@ -28,15 +28,18 @@
 #ifndef _3B2_IO_H_
 #define _3B2_IO_H_
 
+#include "3b2_sysdev.h"
+#include "3b2_uart.h"
+#include "3b2_if.h"
+#include "3b2_id.h"
+#include "3b2_dmac.h"
+#include "3b2_mmu.h"
+
 struct iolink {
     uint32      low;
     uint32      high;
     uint32      (*read)(uint32 pa, uint8 size);
     void        (*write)(uint32 pa, uint32 val, uint8 size);
 };
-
-/* Main system device IO routines */
-uint32 io_read(uint32 pa, uint8 size);
-void io_write(int32 pa, int32 val, uint8 size);
 
 #endif

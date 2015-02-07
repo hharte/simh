@@ -29,28 +29,88 @@
 
 #include "3b2_defs.h"
 #include "3b2_sysdev.h"
+#include "3b2_sys.h"
+
+typedef struct {
+    uint8 data;
+    uint8 cmd;
+    uint8 cmd_type;
+    uint8 status;
+    uint8 track;
+    uint8 sector;
+    uint8 side;
+
+    t_bool drq;
+} IF_STATE;
+
 
 extern DEVICE if_dev;
 extern DEBTAB sys_deb_tab[];
+extern IF_STATE if_state;
 
 #define IFBASE 0x4d000
 #define IFSIZE 0x10
 
+#define IF_STATUS_REG    0
+#define IF_CMD_REG       0
+#define IF_TRACK_REG     1
+#define IF_SECTOR_REG    2
+#define IF_DATA_REG      3
+
+/* Status Bits */
+#define IF_BUSY          0x01
+#define IF_DRQ           0x02
+#define IF_INDEX         0x02
+#define IF_TK_0          0x04
+#define IF_LOST_DATA     0x04
+#define IF_CRC_ERR       0x08
+#define IF_SEEK_ERR      0x10
+#define IF_RNF           0x10
+#define IF_HEAD_LOADED   0x20
+#define IF_RECORD_TYPE   0x20
+#define IF_WP            0x40
+#define IF_NRDY          0x80
+
+/* Type I Commands */
+#define IF_RESTORE       0x00
+#define IF_SEEK          0x10
+#define IF_STEP          0x20
+#define IF_STEP_T        0x30
+#define IF_STEP_IN       0x40
+#define IF_STEP_IN_T     0x50
+#define IF_STEP_OUT      0x60
+#define IF_STEP_OUT_T    0x70
+
+/* Type II Commands */
+#define IF_READ_SEC      0x80
+#define IF_READ_SEC_M    0x90
+#define IF_WRITE_SEC     0xA0
+#define IF_WRITE_SEC_M   0xB0
+
+/* Type III Commands */
+#define IF_READ_ADDR     0xC0
+#define IF_READ_TRACK    0xE0
+#define IF_WRITE_TRACK   0xF0
+
+/* Type IV Command */
+#define IF_FORCE_INT     0xD0
+
 /* Constants */
 
-#define DSK_SECTSIZE  1024
-#define DSK_SECT      9
-#define DSK_SURF      1
-#define DSK_CYL       80
-#define DSK_SIZE      (DSK_SECT * DSK_SURF * DSK_CYL * DSK_SECTSIZE)
+#define IF_SIDES         2
+#define IF_TRACK_SIZE    4608
+#define IF_SECTOR_SIZE   512
+#define IF_TRACK_COUNT   80
+
+#define IF_DSK_SIZE      (IF_SIDES * IF_TRACK_SIZE * IF_TRACK_COUNT)
 
 /* Function prototypes */
 
 t_stat if_svc(UNIT *uptr);
 t_stat if_reset(DEVICE *dptr);
-t_stat if_attach(UNIT *uptr, char *cptr);
 t_stat if_boot(int32 unitno, DEVICE *dptr);
 uint32 if_read(uint32 pa, uint8 size);
 void if_write(uint32 pa, uint32 val, uint8 size);
+void if_drq_handled();
 
 #endif

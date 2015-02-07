@@ -40,6 +40,30 @@
 
 #define UNIT_MSIZE     (1 << UNIT_V_MSIZE)
 
+#define MSB        0x80000000
+#define WORD_MASK  0xffffffff
+#define HALF_MASK  0xffff
+#define BYTE_MASK  0xff
+
+/*
+ *
+ * Physical memory in the 3B2 is arranged as follows:
+ *
+ *    0x00000000 - 0x0001FFFF: 64KB ROM
+ *    0x00040000 - 0x0004FFFF: IO
+ *    0x02000000 - 0x023FFFFF: 4MB RAM ("Mainstore"),
+ *
+ */
+
+#define PHYS_MEM_BASE 0x2000000
+
+#define ROM_BASE      0
+#define ROM_SIZE      0x10000
+#define IO_BASE       0x40000
+#define IO_SIZE       0x10000
+#define IOB_BASE      0x200000
+#define IOB_SIZE      0x1E00000
+
 /* Register numbers */
 #define NUM_FP         9
 #define NUM_AP         10
@@ -63,5 +87,121 @@
 #define INIT_MSG    (1 << 4)
 #define IRQ_MSG     (1 << 5)
 #define IO_D_MSG    (1 << 6)
+
+/* Data types operated on by instructions */
+#define UW 0   /* Unsigned Word */
+#define UH 2   /* Unsigned Halfword */
+#define BT 3   /* Unsigned Byte */
+#define WD 4   /* Signed Word */
+#define HW 6   /* Signed Halfword */
+#define SB 7   /* Signed Byte */
+
+#define NA -1
+
+/*
+ * Exceptions are described on page 2-66 of the WE32100 manual
+ */
+
+/* Exception Types */
+
+#define RESET_EXCEPTION       0
+#define STACK_EXCEPTION       1
+#define PROCESS_EXCEPTION     2
+#define NORMAL_EXCEPTION      3
+
+/* Reset Exceptions */
+#define OLD_PCB_FAULT         0
+#define SYSTEM_DATA_FAULT     1
+#define INTERRUPT_STACK_FAULT 2
+#define EXTERNAL_RESET        3
+#define NEW_PCB_FAULT         4
+#define GATE_VECTOR_FAULT     6
+
+/* Processor Exceptions */
+#define GATE_PCB_FAULT        1
+
+/* Stack Exceptions */
+#define STACK_BOUND           0
+#define STACK_FAULT           1
+#define INTERRUPT_ID_FETCH    3
+
+/* Normal Exceptions */
+#define INTEGER_ZERO_DIVIDE   0
+#define TRACE_TRAP            1
+#define ILLEGAL_OPCODE        2
+#define RESERVED_OPCODE       3
+#define INVALID_DESCRIPTOR    4
+#define EXTERNAL_MEMORY_FAULT 5
+#define ILLEGAL_LEVEL_CHANGE  7
+#define RESERVED_DATATYPE     8
+#define INTEGER_OVERFLOW      9
+#define PRIVILEGED_OPCODE    10
+#define BREAKPOINT_TRAP      14
+#define PRIVILEGED_REGISTER  15
+
+#define PSW_ET                0
+#define PSW_TM                2
+#define PSW_ISC               3
+#define PSW_RI                7
+#define PSW_PM                9
+#define PSW_CM                11
+#define PSW_IPL               13
+#define PSW_TE                17
+#define PSW_C                 18
+#define PSW_V                 19
+#define PSW_Z                 20
+#define PSW_N                 21
+#define PSW_OE                22
+#define PSW_CD                23
+#define PSW_QIE               24
+#define PSW_CFD               25
+
+#define PSW_ET_MASK            3
+#define PSW_TM_MASK           (1 << PSW_TM)
+#define PSW_ISC_MASK          (7 << PSW_ISC)
+#define PSW_RI_MASK           (3 << PSW_RI)
+#define PSW_I_MASK            (1 << PSW_RI)
+#define PSW_R_MASK            (1 << (PSW_RI + 1))
+#define PSW_PM_MASK           (3 << PSW_PM)
+#define PSW_CM_MASK           (3 << PSW_CM)
+#define PSW_IPL_MASK          (15 << PSW_IPL)
+#define PSW_TE_MASK           (1 << PSW_TE)
+#define PSW_C_MASK            (1 << PSW_C)
+#define PSW_V_MASK            (1 << PSW_V)
+#define PSW_N_MASK            (1 << PSW_N)
+#define PSW_Z_MASK            (1 << PSW_Z)
+#define PSW_OE_MASK           (1 << PSW_OE)
+#define PSW_CD_MASK           (1 << PSW_CD)
+#define PSW_QIE_MASK          (1 << PSW_QIE)
+#define PSW_CFD_MASK          (1 << PSW_CFD)
+
+
+/* global symbols from the CPU */
+
+extern uint32 *ROM;
+extern uint32 *RAM;
+extern uint32 R[16];
+extern REG cpu_reg[];
+extern DEVICE cpu_dev;
+extern UNIT cpu_unit;
+extern uint8 fault;
+extern DEBTAB sys_deb_tab[];
+
+/* global symbols from the DMAC */
+extern DEVICE dmac_dev;
+
+/* global symbols from the MMU */
+
+extern t_bool mmu_en;
+
+/* Globally scoped CPU functions */
+void cpu_set_exception(uint8 et, uint8 isc);
+void cpu_set_irq(uint16 ipl, uint8 id, t_bool nmi);
+
+/* Globally scoped IO functions */
+uint32 io_read(uint32 pa, uint8 size);
+void io_write(int32 pa, int32 val, uint8 size);
+
+
 
 #endif

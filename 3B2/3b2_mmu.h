@@ -1,6 +1,6 @@
-/* 3b2_sys.h: AT&T 3B2 Model 400 system-specific logic headers
+/* 3b2_mmu.c: AT&T 3B2 Model 400 MMU (WE32101) Header
 
-   Copyright (c) 2014, Seth J. Morabito
+   Copyright (c) 2015, Seth J. Morabito
 
    Permission is hereby granted, free of charge, to any person obtaining a
    copy of this software and associated documentation files (the "Software"),
@@ -19,24 +19,35 @@
    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-   Except as contained in this notice, the name of Charles E. Owen shall not be
+   Except as contained in this notice, the name of the author shall not be
    used in advertising or otherwise to promote the sale, use or other dealings
-   in this Software without prior written authorization from Charles E. Owen.
+   in this Software without prior written authorization from the author.
 */
 
-#ifndef _3B2_SYS_H
-#define _3B2_SYS_H
+#ifndef _3B2_MMU_H
+#define _3B2_MMU_H
 
 #include "3b2_defs.h"
 
-extern uint32 R[16];
-extern char sim_name[];
-extern REG *sim_PC;
-extern int32 sim_emax;
-extern DEVICE *sim_devices[];
+uint8  pread_b(uint32 pa);
+uint16 pread_h(uint32 pa);
+uint32 pread_w(uint32 pa);
+uint32 pread_w_u(uint32 pa);
 
-t_stat sim_load (FILE *fileref, char *cptr, char *fnam, int flag);
-t_stat parse_sym (char *cptr, t_addr addr, UNIT *uptr, t_value *val, int32 sw);
-t_stat fprint_sym (FILE *of, t_addr addr, t_value *val, UNIT *uptr, int32 sw);
+void   pwrite_b(uint32 pa, uint8 val);
+void   pwrite_h(uint32 pa, uint16 val);
+void   pwrite_w(uint32 pa, uint32 val);
+void   pwrite_w_u(uint32 pa, uint32 val);
+
+uint8  vread_b(uint32 va);
+uint16 vread_h(uint32 va);
+uint32 vread_w(uint32 va);
+void   vwrite_b(uint32 va);
+void   vwrite_h(uint32 va);
+void   vwrite_w(uint32 va);
+
+t_bool addr_is_rom(uint32 pa);
+t_bool addr_is_mem(uint32 pa);
+t_bool addr_is_io(uint32 pa);
 
 #endif

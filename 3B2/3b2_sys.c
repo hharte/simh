@@ -40,7 +40,6 @@ REG *sim_PC = &cpu_reg[0];
    there may be up to 3 operands, for a maximum of 20 bytes */
 int32 sim_emax = 20;
 
-extern int32 R[];
 extern instr *last_instruction;
 
 DEVICE *sim_devices[] = {

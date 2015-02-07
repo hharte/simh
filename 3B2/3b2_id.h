@@ -30,8 +30,59 @@
 #include "3b2_defs.h"
 #include "3b2_sysdev.h"
 
+/* Command Codes (bits 3-7 of command byte) */
+
+#define ID_DATA_REG     0
+#define ID_COMMAND_REG  1
+
+#define ID_CMD_AUX      0x00  /* Auxiliary Command */
+#define ID_CMD_SIS      0x01  /* Sense int. status */
+#define ID_CMD_SPEC     0x02  /* Specify           */
+#define ID_CMD_SUS      0x03  /* Sense unit status */
+#define ID_CMD_DERR     0x04  /* Detect Error      */
+#define ID_CMD_RECAL    0x05  /* Recalibrate       */
+#define ID_CMD_SEEK     0x06  /* Seek              */
+#define ID_CMD_FMT      0x07  /* Format            */
+#define ID_CMD_VID      0x08  /* Verify ID         */
+#define ID_CMD_RID      0x09  /* Read ID           */
+#define ID_CMD_RDIAG    0x0A  /* Read Diagnostic   */
+#define ID_CMD_RDATA    0x0B  /* Read Data         */
+#define ID_CMD_CHECK    0x0C  /* Check             */
+#define ID_CMD_SCAN     0x0D  /* Scan              */
+#define ID_CMD_VDATA    0x0E  /* Verify Data       */
+#define ID_CMD_WDATA    0x0F  /* Write Data        */
+
+#define ID_AUX_RST      0x01
+#define ID_AUX_CLB      0x02
+#define ID_AUX_HSRQ     0x04
+#define ID_AUX_CLCE     0x08
+
+#define ID_STAT_DRQ     0x01
+#define ID_STAT_NCI     0x02
+#define ID_STAT_IER     0x04
+#define ID_STAT_RRQ     0x08
+#define ID_STAT_SRQ     0x10
+#define ID_STAT_CEL     0x20
+#define ID_STAT_CEH     0x40
+#define ID_STAT_CB      0x80
+
+/* Unit, Register, Device descriptions */
+
+#define ID_FIFO_LEN 8
+
+typedef struct {
+    uint8 cmd;
+    uint8 data[ID_FIFO_LEN];   /* 32-byte FIFO */
+    uint8 data_p;              /* FIFO write pointer */
+    uint8 status;
+    uint16 track;
+
+    t_bool drq;
+} ID_STATE;
+
 extern DEVICE id_dev;
 extern DEBTAB sys_deb_tab[];
+extern ID_STATE id_state;
 
 #define IDBASE 0x4a000
 #define IDSIZE 0x2
@@ -46,5 +97,7 @@ t_stat id_attach(UNIT *uptr, char *cptr);
 t_stat id_boot(int32 unitno, DEVICE *dptr);
 uint32 id_read(uint32 pa, uint8 size);
 void id_write(uint32 pa, uint32 val, uint8 size);
+
+void id_drq_handled();
 
 #endif

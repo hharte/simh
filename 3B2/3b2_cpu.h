@@ -1,131 +1,14 @@
-#ifndef _3B2_CPU_H
-#define _3B2_CPU_H
+#ifndef _3B2_CPU_H_
+#define _3B2_CPU_H_
 
 #include "3b2_defs.h"
-#include "3b2_sysdev.h"
-
-/* Data types operated on by instructions */
-#define UW 0   /* Unsigned Word */
-#define UH 2   /* Unsigned Halfword */
-#define BT 3   /* Unsigned Byte */
-#define WD 4   /* Signed Word */
-#define HW 6   /* Signed Halfword */
-#define SB 7   /* Signed Byte */
-
-#define NA -1
-
-/*
- * Exceptions are described on page 2-66 of the WE32100 manual
- */
-
-/* Exception Types */
-
-#define RESET_EXCEPTION       0
-#define STACK_EXCEPTION       1
-#define PROCESS_EXCEPTION     2
-#define NORMAL_EXCEPTION      3
-
-/* Reset Exceptions */
-#define OLD_PCB_FAULT         0
-#define SYSTEM_DATA_FAULT     1
-#define INTERRUPT_STACK_FAULT 2
-#define EXTERNAL_RESET        3
-#define NEW_PCB_FAULT         4
-#define GATE_VECTOR_FAULT     6
-
-/* Processor Exceptions */
-#define GATE_PCB_FAULT        1
-
-/* Stack Exceptions */
-#define STACK_BOUND           0
-#define STACK_FAULT           1
-#define INTERRUPT_ID_FETCH    3
-
-/* Normal Exceptions */
-#define INTEGER_ZERO_DIVIDE   0
-#define TRACE_TRAP            1
-#define ILLEGAL_OPCODE        2
-#define RESERVED_OPCODE       3
-#define INVALID_DESCRIPTOR    4
-#define EXTERNAL_MEMORY_FAULT 5
-#define ILLEGAL_LEVEL_CHANGE  7
-#define RESERVED_DATATYPE     8
-#define INTEGER_OVERFLOW      9
-#define PRIVILEGED_OPCODE    10
-#define BREAKPOINT_TRAP      14
-#define PRIVILEGED_REGISTER  15
-
-#define PSW_ET                0
-#define PSW_TM                2
-#define PSW_ISC               3
-#define PSW_RI                7
-#define PSW_PM                9
-#define PSW_CM                11
-#define PSW_IPL               13
-#define PSW_TE                17
-#define PSW_C                 18
-#define PSW_V                 19
-#define PSW_Z                 20
-#define PSW_N                 21
-#define PSW_OE                22
-#define PSW_CD                23
-#define PSW_QIE               24
-#define PSW_CFD               25
-
-#define PSW_ET_MASK            3
-#define PSW_TM_MASK           (1 << PSW_TM)
-#define PSW_ISC_MASK          (7 << PSW_ISC)
-#define PSW_RI_MASK           (3 << PSW_RI)
-#define PSW_I_MASK            (1 << PSW_RI)
-#define PSW_R_MASK            (1 << (PSW_RI + 1))
-#define PSW_PM_MASK           (3 << PSW_PM)
-#define PSW_CM_MASK           (3 << PSW_CM)
-#define PSW_IPL_MASK          (15 << PSW_IPL)
-#define PSW_TE_MASK           (1 << PSW_TE)
-#define PSW_C_MASK            (1 << PSW_C)
-#define PSW_V_MASK            (1 << PSW_V)
-#define PSW_N_MASK            (1 << PSW_N)
-#define PSW_Z_MASK            (1 << PSW_Z)
-#define PSW_OE_MASK           (1 << PSW_OE)
-#define PSW_CD_MASK           (1 << PSW_CD)
-#define PSW_QIE_MASK          (1 << PSW_QIE)
-#define PSW_CFD_MASK          (1 << PSW_CFD)
+#include "3b2_io.h"
 
 /* Execution Modes */
 #define EX_LVL_KERN           0
 #define EX_LVL_EXEC           1
 #define EX_LVL_SUPR           2
 #define EX_LVL_USER           3
-
-#define MSB        0x80000000
-#define WORD_MASK  0xffffffff
-#define HALF_MASK  0xffff
-#define BYTE_MASK  0xff
-
-/*
- *
- * Physical memory in the 3B2 is arranged as follows:
- *
- *    0x00000000 - 0x0001FFFF: 64KB ROM
- *    0x00040000 - 0x0004FFFF: IO
- *    0x02000000 - 0x023FFFFF: 4MB RAM ("Mainstore"),
- *
- */
-
-#define PHYS_MEM_BASE 0x2000000
-
-#define ROM_BASE      0
-#define ROM_SIZE      0x10000
-#define IO_BASE       0x40000
-#define IO_SIZE       0x10000
-#define IOB_BASE      0x200000
-#define IOB_SIZE      0x1E00000
-
-
-extern REG cpu_reg[];
-extern DEVICE cpu_dev;
-extern UNIT cpu_unit;
-extern uint8 fault;
 
 /*
  *
@@ -485,8 +368,6 @@ instr *cpu_next_instruction(void);
 
 uint8 get_mnemonic(mnemonic **mn_p, uint32 pa);
 uint8 decode_instruction(instr *instr);
-void cpu_set_exception(uint8 et, uint8 isc);
-void cpu_set_irq(uint16 ipl, uint8 id, t_bool nmi);
 t_bool cpu_handle_irq(uint16 ipl, uint8 id, t_bool nmi);
 void cpu_perform_gate(uint32 index1, uint32 index2);
 
@@ -527,30 +408,6 @@ static uint32 cpu_pop_word();
 static void irq_push_word(uint32 val);
 static uint32 irq_pop_word();
 static void cpu_context_switch(uint32 pcbp);
-
-static SIM_INLINE t_bool addr_is_rom(uint32 pa);
-static SIM_INLINE t_bool addr_is_mem(uint32 pa);
-static SIM_INLINE t_bool addr_is_io(uint32 pa);
 static SIM_INLINE t_bool op_is_psw(operand *op);
 
-/* MMU */
-
-uint32 pread_addr(uint32 pa);
-uint8  pread_b(uint32 pa);
-uint16 pread_h(uint32 pa);
-uint32 pread_w(uint32 pa);
-uint32 pread_w_u(uint32 pa);
-void   pwrite_b(uint32 pa, uint8 val);
-void   pwrite_h(uint32 pa, uint16 val);
-void   pwrite_w(uint32 pa, uint32 val);
-void   pwrite_w_u(uint32 pa, uint32 val);
-
-uint8  vread_b(uint32 va);
-uint16 vread_h(uint32 va);
-uint32 vread_w(uint32 va);
-void   vwrite_b(uint32 va);
-void   vwrite_h(uint32 va);
-void   vwrite_w(uint32 va);
-
-
-#endif /* ifndef _3B2_CPU_H */
+#endif

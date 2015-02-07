@@ -275,33 +275,6 @@ void nvram_write(uint32 pa, uint32 val, uint8 size)
     }
 }
 
-/* DMAC */
-
-UNIT dmac_unit = { UDATA(NULL, 0, 0) };
-
-REG  dmac_reg[] = {
-    { NULL }
-};
-
-DEVICE dmac_dev = {
-    "DMAC", &dmac_unit, dmac_reg, NULL,
-    1, 16, 8, 4, 16, 32,
-    NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL,
-    DEV_DEBUG, 0, sys_deb_tab
-};
-
-uint32 dmac_read(uint32 pa, uint8 size)
-{
-    /* TODO: Implement */
-    return 0;
-}
-
-void dmac_write(uint32 pa, uint32 val, uint8 size)
-{
-    /* TODO: Implement */
-}
-
 /* 8253 Timer */
 
 struct timers {

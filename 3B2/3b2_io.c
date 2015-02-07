@@ -25,10 +25,6 @@
 
 */
 
-#include "3b2_sysdev.h"
-#include "3b2_uart.h"
-#include "3b2_if.h"
-#include "3b2_id.h"
 #include "3b2_io.h"
 
 struct iolink iotable[] = {
@@ -64,7 +60,15 @@ uint32 io_read(uint32 pa, uint8 size)
 
     /* IO Board Area - Unimplemented */
     if (pa >= 0x200000 && pa < 0x2000000) {
-        return 0;
+        sim_debug(IO_D_MSG, &cpu_dev, "[%08x] [IO BOARD READ] ADDR=%08x\n", R[NUM_PC], pa);
+        switch(pa) {
+        case 0x200001:
+            return 0x02;
+        case 0x200000:
+            return 0x00;
+        default:
+            return 0;
+        };
     }
 
     for (p = &iotable[0]; p->low != 0; p++) {
@@ -88,6 +92,7 @@ void io_write(int32 pa, int32 val, uint8 size)
 
     /* IO Board Area - Unimplemented */
     if (pa >= 0x200000 && pa < 0x2000000) {
+        sim_debug(IO_D_MSG, &cpu_dev, "[IO BOARD WRITE] ADDR=%08x\n", pa);
         return;
     }
 
