@@ -30,6 +30,7 @@
 #include "3b2_uart.h"
 #include "3b2_if.h"
 #include "3b2_id.h"
+#include "3b2_mmu.h"
 #include "3b2_sysdev.h"
 
 char sim_name[] = "AT&T 3B2 Model 400";
@@ -44,6 +45,7 @@ extern instr *last_instruction;
 
 DEVICE *sim_devices[] = {
     &cpu_dev,
+    &mmu_dev,
     &timer_dev,
     &nvram_dev,
     &csr_dev,

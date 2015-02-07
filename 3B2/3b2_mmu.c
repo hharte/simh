@@ -61,6 +61,30 @@
 
 MMU_STATE mmu_state;
 
+UNIT mmu_unit = { UDATA(NULL, 0, 0) };
+
+REG mmu_reg[] = {
+    { NULL }
+};
+
+DEVICE mmu_dev = {
+    "MMU", &mmu_unit, mmu_reg, NULL,
+    1, 16, 8, 4, 16, 32,
+    NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL,
+    DEV_DEBUG, 0, sys_deb_tab
+};
+
+uint32 mmu_read(uint32 pa, uint8 size)
+{
+    sim_debug(READ_MSG, &mmu_dev, "MMU Read: %08x\n", pa);
+    return 0;
+}
+
+void mmu_write(uint32 pa, uint32 val, uint8 size)
+{
+    sim_debug(WRITE_MSG, &mmu_dev, "MMU Write: %08x=%02x\n", pa, val);
+}
 
 void mmu_enable()
 {

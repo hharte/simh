@@ -28,17 +28,18 @@
 #include "3b2_io.h"
 
 struct iolink iotable[] = {
+    { MMUBASE,    MMUBASE+MMUSIZE,       &mmu_read,   &mmu_write   },
     { TIMERBASE,  TIMERBASE+TIMERSIZE,   &timer_read, &timer_write },
     { NVRAMBASE,  NVRAMBASE+NVRAMSIZE,   &nvram_read, &nvram_write },
-    { CSRBASE,    CSRBASE+CSRSIZE,       &csr_read, &csr_write     },
-    { UARTBASE,   UARTBASE+UARTSIZE,     &uart_read, &uart_write   },
-    { DMAIDBASE,  DMAIDBASE+DMAIDSIZE,   &dmac_read, &dmac_write   },
-    { DMAIUABASE, DMAIUABASE+DMAIUASIZE, &dmac_read, &dmac_write   },
-    { DMAIUBBASE, DMAIUBBASE+DMAIUBSIZE, &dmac_read, &dmac_write   },
-    { DMACBASE,   DMACBASE+DMACSIZE,     &dmac_read, &dmac_write   },
-    { DMAIFBASE,  DMAIFBASE+DMAIFSIZE,   &dmac_read, &dmac_write   },
-    { IFBASE,     IFBASE+IFSIZE,         &if_read, &if_write       },
-    { IDBASE,     IDBASE+IFSIZE,         &id_read, &id_write       },
+    { CSRBASE,    CSRBASE+CSRSIZE,       &csr_read,   &csr_write   },
+    { UARTBASE,   UARTBASE+UARTSIZE,     &uart_read,  &uart_write  },
+    { DMAIDBASE,  DMAIDBASE+DMAIDSIZE,   &dmac_read,  &dmac_write  },
+    { DMAIUABASE, DMAIUABASE+DMAIUASIZE, &dmac_read,  &dmac_write  },
+    { DMAIUBBASE, DMAIUBBASE+DMAIUBSIZE, &dmac_read,  &dmac_write  },
+    { DMACBASE,   DMACBASE+DMACSIZE,     &dmac_read,  &dmac_write  },
+    { DMAIFBASE,  DMAIFBASE+DMAIFSIZE,   &dmac_read,  &dmac_write  },
+    { IFBASE,     IFBASE+IFSIZE,         &if_read,    &if_write    },
+    { IDBASE,     IDBASE+IFSIZE,         &id_read,    &id_write    },
     { 0, 0, NULL, NULL}
 };
 
@@ -55,12 +56,14 @@ uint32 io_read(uint32 pa, uint8 size)
            0x02: 1MB   (1,048,576 B)
            0x03: 4MB   (4,194,304 B)
         */
+        /* TODO: Implement correctly */
         return 3;
     }
 
     /* IO Board Area - Unimplemented */
     if (pa >= 0x200000 && pa < 0x2000000) {
         sim_debug(IO_D_MSG, &cpu_dev, "[%08x] [IO BOARD READ] ADDR=%08x\n", R[NUM_PC], pa);
+        /* TODO: This is an experiment */
         switch(pa) {
         case 0x200001:
             return 0x02;

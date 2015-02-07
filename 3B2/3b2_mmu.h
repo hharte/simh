@@ -29,9 +29,17 @@
 
 #include "3b2_defs.h"
 
+#define MMUBASE 0x40000
+#define MMUSIZE 0x1000
+
 typedef struct {
     t_bool enabled;
 } MMU_STATE;
+
+extern DEVICE mmu_dev;
+
+uint32 mmu_read(uint32 pa, uint8 size);
+void mmu_write(uint32 pa, uint32 val, uint8 size);
 
 uint8  pread_b(uint32 pa);
 uint16 pread_h(uint32 pa);

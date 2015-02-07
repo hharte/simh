@@ -221,7 +221,7 @@ mnemonic ops[256] = {
     {0x31, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x32,  1, OP_COPR, NA, "SPOP",   -1, -1, -1, -1},
     {0x33,  2, OP_COPR, NA, "SPOPWS", -1, -1, -1, -1},
-    {0x34,  1, OP_DESC, NA, "JSB",    -1, -1, -1, -1},
+    {0x34,  1, OP_DESC, WD, "JSB",    -1, -1, -1,  0},
     {0x35, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x36,  1, OP_HALF, NA, "BSBH",   -1, -1, -1,  0},
     {0x37,  1, OP_BYTE, NA, "BSBB",   -1, -1, -1,  0},
@@ -1676,6 +1676,10 @@ t_stat sim_instr(void)
         case JMP:
             R[NUM_PC] = cpu_effective_address(dst);
             continue;
+        case JSB:
+            cpu_push_word(R[NUM_PC] + len);
+            R[NUM_PC] += pread_w_u(cpu_read_op(dst));
+            break;
         case ALSW3:
         case LLSW3:
             tmp_ul = cpu_read_op(src2) << (cpu_read_op(src1) & 0x1f);
@@ -2132,7 +2136,6 @@ static uint32 cpu_effective_address(operand * op)
               R[NUM_PC]);
 
     assert(0);
-
 
     return 0;
 }
