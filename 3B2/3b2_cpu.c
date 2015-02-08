@@ -425,20 +425,22 @@ mnemonic ops[256] = {
     {0xff,  3, OP_DESC, BT, "SUBB3",   0,  1, -1,  2}
 };
 
-/*
- * TODO: Proper read-only memory. For now, we just load the ROM into
- * memory at location 0000 to 7FFF.
- */
 void cpu_load_rom()
 {
     uint32 i;
+    int32 index, sc, mask, val;
 
     if (ROM == NULL) {
         return;
     }
 
     for (i = 0; i < ROM_IMG_LEN; i++) {
-        pwrite_b(i, rom_400_bin[i]);
+        val = rom_400_bin[i];
+        sc = (~(i & 3) << 3) & 0x1f;
+        mask = 0xff << sc;
+        index = i >> 2;
+
+        ROM[index] = (ROM[index] & ~mask) | (val << sc);
     }
 }
 
@@ -454,9 +456,9 @@ t_stat cpu_boot(int32 unit_num, DEVICE *dptr)
      *     in the PC.
      */
 
-    cpu_load_rom();
-
     mmu_disable();
+
+    cpu_load_rom();
 
     R[NUM_PCBP] = pread_w(0x80);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PCBP: %08x\n", R[NUM_PCBP]);

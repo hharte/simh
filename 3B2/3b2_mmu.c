@@ -167,16 +167,18 @@ void mmu_write(uint32 pa, uint32 val, uint8 size)
         mmu_state.pdclh[offset] = val;
         break;
     case MMU_SRAMA:
+        mmu_state.sra[offset] = val;
+        mmu_state.sec[offset].addr = val & 0xffffffe0;
         sim_debug(WRITE_MSG, &mmu_dev,
                   "  >> SRAMA: SDT[%d] Addr = %08x\n",
-                  offset, val & 0xffffffe0);
-        mmu_state.sra[offset] = val;
+                  offset, mmu_state.sec[offset].addr);
         break;
     case MMU_SRAMB:
+        mmu_state.srb[offset] = val;
+        mmu_state.sec[offset].len = (val >> 10) & 0x1fff;
         sim_debug(WRITE_MSG, &mmu_dev,
                   "  >> SRAMB: SDT[%d] Len = %08x\n",
-                  offset, (val >> 10) & 0x1fff);
-        mmu_state.srb[offset] = val;
+                  offset, mmu_state.sec[offset].len);
         break;
     case MMU_FC:
         mmu_state.fcode = val;
@@ -200,17 +202,17 @@ SIM_INLINE t_bool mmu_enabled()
 
 SIM_INLINE void mmu_enable()
 {
+    sim_debug(EXECUTE_MSG, &mmu_dev,
+              "Enabling MMU.\n");
     mmu_state.enabled = TRUE;
 }
 
 SIM_INLINE void mmu_disable()
 {
+    sim_debug(EXECUTE_MSG, &mmu_dev,
+              "Disabling MMU.\n");
     mmu_state.enabled = FALSE;
 }
-
-/*
- * TODO: MMU support. Currently only physical addresses are supported.
- */
 
 t_bool addr_is_rom(uint32 pa)
 {
@@ -276,10 +278,7 @@ void pwrite_w(uint32 pa, uint32 val)
         return;
     }
 
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
+    if (addr_is_mem(pa)) {
         m = RAM;
         index = (pa - PHYS_MEM_BASE) >> 2;
     } else {
@@ -342,10 +341,7 @@ void pwrite_h(uint32 pa, uint16 val)
         return;
     }
 
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
+    if (addr_is_mem(pa)) {
         m = RAM;
         index = (pa - PHYS_MEM_BASE) >> 2;
     } else {
@@ -399,10 +395,7 @@ void pwrite_b(uint32 pa, uint8 val)
         return;
     }
 
-    if (addr_is_rom(pa)) {
-        m = ROM;
-        index = pa >> 2;
-    } else if (addr_is_mem(pa)) {
+    if (addr_is_mem(pa)) {
         m = RAM;
         index = (pa - PHYS_MEM_BASE) >> 2;
     } else {

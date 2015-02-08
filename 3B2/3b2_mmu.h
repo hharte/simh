@@ -53,6 +53,25 @@
 #define MMU_VAR    11
 
 typedef struct {
+    uint32 addr;
+    uint32 len;
+} mmu_sec;
+
+typedef struct {
+    uint8  tag;          /* ID tag */
+    uint32 max_offset;   /* Maximum offset */
+    uint8  access;       /* Access permissions */
+    t_bool good;         /* Cache entry contains a descriptor */
+    t_bool modified;
+    t_bool contiguous;
+    t_bool cacheable;
+    t_bool otrap;        /* Object Trap */
+    uint32 addr;         /* Pointer to address in main memory for
+                            continugous segments or to page descriptor
+                            table for paged segments */
+} mmu_sdc;
+
+typedef struct {
     t_bool enabled;         /* Global enabled/disabled flag */
 
     uint32 sdcl[MMU_SDCS];  /* SDC low bits (0-31) */
@@ -66,6 +85,9 @@ typedef struct {
 
     uint32 sra[MMU_SRS];    /* Section RAM A */
     uint32 srb[MMU_SRS];    /* Section RAM B */
+
+    mmu_sec sec[MMU_SRS];   /* Section descriptors decoded from
+                               Section RAM A and B */
 
     uint32 fcode;           /* Fault Code Register */
     uint32 faddr;           /* Fault Address Register */
