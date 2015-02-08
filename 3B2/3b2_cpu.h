@@ -93,7 +93,7 @@ typedef enum {
     RGEQ    = 0x40,
     BGEH    = 0x42,
     BGEB    = 0x43,
-    BGTR    = 0x44,
+    RGTR    = 0x44,
     BGH     = 0x46,
     BGB     = 0x47,
     RLSS    = 0x48,
@@ -102,7 +102,7 @@ typedef enum {
     RLEQ    = 0x4C,
     BLEH    = 0x4E,
     BLEB    = 0x4F,
-    BGEQU   = 0x50,  // Also BCC
+    RGEQU   = 0x50,
     BGEUH   = 0x52,  // Also BCCH
     BGEUB   = 0x53,  // Also BCCB
     RGTRU   = 0x54,

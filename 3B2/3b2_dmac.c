@@ -242,8 +242,8 @@ void dmac_service_if(uint32 service_address)
         offset = 0;
         for (i = dma_state.channels[DMA_IF_CHAN].wcount; i >= 0; i--) {
             addr = dma_address(DMA_IF_CHAN, offset++);
-            data = pread_b(addr);
-            pwrite_b(service_address, data);
+            data = read_b(addr);
+            write_b(service_address, data);
         }
 
         /* End of Process must set the IF channel's mask bit */
@@ -254,8 +254,8 @@ void dmac_service_if(uint32 service_address)
         offset = 0;
         for (i = dma_state.channels[DMA_IF_CHAN].wcount; i >= 0; i--) {
             addr = dma_address(DMA_IF_CHAN, offset++);
-            data = pread_b(service_address);
-            pwrite_b(addr, data);
+            data = read_b(service_address);
+            write_b(addr, data);
         }
 
         /* End of Process must set the IF channel's mask bit */

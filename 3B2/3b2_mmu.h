@@ -32,8 +32,46 @@
 #define MMUBASE 0x40000
 #define MMUSIZE 0x1000
 
+#define MMU_SRS  0x04       /* Section RAM array size (words) */
+#define MMU_SDCS 0x20       /* Segment Descriptor Cache H/L array size
+                               (words) */
+#define MMU_PDCS 0x20       /* Page Descriptor Cache H/L array size
+                               (words) */
+
+/* Register address offsets */
+#define MMU_SDCL   0
+#define MMU_SDCH   1
+#define MMU_PDCRL  2
+#define MMU_PDCRH  3
+#define MMU_PDCLL  4
+#define MMU_PDCLH  5
+#define MMU_SRAMA  6
+#define MMU_SRAMB  7
+#define MMU_FC     8
+#define MMU_FA     9
+#define MMU_CONF   10
+#define MMU_VAR    11
+
 typedef struct {
-    t_bool enabled;
+    t_bool enabled;         /* Global enabled/disabled flag */
+
+    uint32 sdcl[MMU_SDCS];  /* SDC low bits (0-31) */
+    uint32 sdch[MMU_SDCS];  /* SDC high bits (32-63) */
+
+    uint32 pdcll[MMU_PDCS]; /* PDC low bits (left) (0-31) */
+    uint32 pdclh[MMU_PDCS]; /* PDC high bits (left) (32-63) */
+
+    uint32 pdcrl[MMU_PDCS]; /* PDC low bits (right) (0-31) */
+    uint32 pdcrh[MMU_PDCS]; /* PDC high bits (right) (32-63) */
+
+    uint32 sra[MMU_SRS];    /* Section RAM A */
+    uint32 srb[MMU_SRS];    /* Section RAM B */
+
+    uint32 fcode;           /* Fault Code Register */
+    uint32 faddr;           /* Fault Address Register */
+    uint32 conf;            /* Configuration Register */
+    uint32 var;             /* Virtual Address Register */
+
 } MMU_STATE;
 
 extern DEVICE mmu_dev;
@@ -41,27 +79,31 @@ extern DEVICE mmu_dev;
 uint32 mmu_read(uint32 pa, uint8 size);
 void mmu_write(uint32 pa, uint32 val, uint8 size);
 
+/* Physical memory read/write */
 uint8  pread_b(uint32 pa);
 uint16 pread_h(uint32 pa);
 uint32 pread_w(uint32 pa);
-uint32 pread_w_u(uint32 pa);
-
 void   pwrite_b(uint32 pa, uint8 val);
 void   pwrite_h(uint32 pa, uint16 val);
 void   pwrite_w(uint32 pa, uint32 val);
-void   pwrite_w_u(uint32 pa, uint32 val);
 
-uint8  vread_b(uint32 va);
-uint16 vread_h(uint32 va);
-uint32 vread_w(uint32 va);
-void   vwrite_b(uint32 va);
-void   vwrite_h(uint32 va);
-void   vwrite_w(uint32 va);
+/* Virtual memory translation */
+uint32 mmu_xlate_addr(uint32 va);
+
+/* Dispatch to the MMU when enabled, or to physical RW when
+   disabled */
+uint8  read_b(uint32 va);
+uint16 read_h(uint32 va);
+uint32 read_w(uint32 va);
+void   write_b(uint32 va, uint8 val);
+void   write_h(uint32 va, uint16 val);
+void   write_w(uint32 va, uint32 val);
 
 t_bool addr_is_rom(uint32 pa);
 t_bool addr_is_mem(uint32 pa);
 t_bool addr_is_io(uint32 pa);
 
+t_bool mmu_enabled();
 void mmu_enable();
 void mmu_disable();
 

@@ -64,6 +64,19 @@ MMU_STATE mmu_state;
 UNIT mmu_unit = { UDATA(NULL, 0, 0) };
 
 REG mmu_reg[] = {
+    { HRDATAD (ENABLE, mmu_state.enabled, 1, "Enabled?")   },
+    { HRDATAD (CONFIG, mmu_state.conf,   32, "Configuration")   },
+    { HRDATAD (VAR,    mmu_state.var,    32, "Virtual Address") },
+    { HRDATAD (FCODE,  mmu_state.fcode,  32, "Fault Code")      },
+    { HRDATAD (FADDR,  mmu_state.faddr,  32, "Fault Address")   },
+    { BRDATA  (SDCL,   mmu_state.sdcl,   16, 32, MMU_SDCS)      },
+    { BRDATA  (SDCR,   mmu_state.sdch,   16, 32, MMU_SDCS)      },
+    { BRDATA  (PDCLL,  mmu_state.pdcll,  16, 32, MMU_PDCS)      },
+    { BRDATA  (PDCLH,  mmu_state.pdclh,  16, 32, MMU_PDCS)      },
+    { BRDATA  (PDCRL,  mmu_state.pdcrl,  16, 32, MMU_PDCS)      },
+    { BRDATA  (PDCRH,  mmu_state.pdcrh,  16, 32, MMU_PDCS)      },
+    { BRDATA  (SRAMA,  mmu_state.sra,    16, 32, MMU_SRS)       },
+    { BRDATA  (SRAMB,  mmu_state.srb,    16, 32, MMU_SRS)       },
     { NULL }
 };
 
@@ -77,21 +90,120 @@ DEVICE mmu_dev = {
 
 uint32 mmu_read(uint32 pa, uint8 size)
 {
-    sim_debug(READ_MSG, &mmu_dev, "MMU Read: %08x\n", pa);
-    return 0;
+    uint32 offset;
+    uint32 data = 0;
+
+    offset = (pa & 0xff) >> 2;
+
+    switch ((pa >> 8) & 0xf) {
+    case MMU_SDCL:
+        data = mmu_state.sdcl[offset];
+        break;
+    case MMU_SDCH:
+        data = mmu_state.sdch[offset];
+        break;
+    case MMU_PDCRL:
+        data = mmu_state.pdcrl[offset];
+        break;
+    case MMU_PDCRH:
+        data = mmu_state.pdcrh[offset];
+        break;
+    case MMU_PDCLL:
+        data = mmu_state.pdcll[offset];
+        break;
+    case MMU_PDCLH:
+        data = mmu_state.pdclh[offset];
+        break;
+    case MMU_SRAMA:
+        data = mmu_state.sra[offset];
+        break;
+    case MMU_SRAMB:
+        data = mmu_state.srb[offset];
+        break;
+    case MMU_FC:
+        data = mmu_state.fcode;
+        break;
+    case MMU_FA:
+        data = mmu_state.faddr;
+        break;
+    case MMU_CONF:
+        data = mmu_state.conf;
+        break;
+    case MMU_VAR:
+        data = mmu_state.var;
+        break;
+    }
+
+    sim_debug(READ_MSG, &mmu_dev, "%08x, returning %08x [offset=%02x]\n", pa, data, offset);
+
+    return data;
 }
 
 void mmu_write(uint32 pa, uint32 val, uint8 size)
 {
-    sim_debug(WRITE_MSG, &mmu_dev, "MMU Write: %08x=%02x\n", pa, val);
+    uint32 offset;
+
+    offset = (pa & 0xff) >> 2;
+
+    sim_debug(WRITE_MSG, &mmu_dev, "%08x=%02x [offset=%02x]\n", pa, val, offset);
+
+    switch ((pa >> 8) & 0xf) {
+    case MMU_SDCL:
+        mmu_state.sdcl[offset] = val;
+        break;
+    case MMU_SDCH:
+        mmu_state.sdch[offset] = val;
+        break;
+    case MMU_PDCRL:
+        mmu_state.pdcrl[offset] = val;
+        break;
+    case MMU_PDCRH:
+        mmu_state.pdcrh[offset] = val;
+        break;
+    case MMU_PDCLL:
+        mmu_state.pdcll[offset] = val;
+        break;
+    case MMU_PDCLH:
+        mmu_state.pdclh[offset] = val;
+        break;
+    case MMU_SRAMA:
+        sim_debug(WRITE_MSG, &mmu_dev,
+                  "  >> SRAMA: SDT[%d] Addr = %08x\n",
+                  offset, val & 0xffffffe0);
+        mmu_state.sra[offset] = val;
+        break;
+    case MMU_SRAMB:
+        sim_debug(WRITE_MSG, &mmu_dev,
+                  "  >> SRAMB: SDT[%d] Len = %08x\n",
+                  offset, (val >> 10) & 0x1fff);
+        mmu_state.srb[offset] = val;
+        break;
+    case MMU_FC:
+        mmu_state.fcode = val;
+        break;
+    case MMU_FA:
+        mmu_state.faddr = val;
+        break;
+    case MMU_CONF:
+        mmu_state.conf = val;
+        break;
+    case MMU_VAR:
+        mmu_state.var = val;
+        break;
+    }
 }
 
-void mmu_enable()
+SIM_INLINE t_bool mmu_enabled()
+{
+    return mmu_state.enabled;
+}
+
+SIM_INLINE void mmu_enable()
 {
     mmu_state.enabled = TRUE;
 }
 
-void mmu_disable()
+SIM_INLINE void mmu_disable()
 {
     mmu_state.enabled = FALSE;
 }
@@ -128,7 +240,7 @@ t_bool addr_is_io(uint32 pa)
 /*
  * Read Word (Physical Address, Unaligned)
  */
-uint32 pread_w_u(uint32 pa)
+uint32 pread_w(uint32 pa)
 {
     uint32 *m;
     uint32 index;
@@ -152,23 +264,9 @@ uint32 pread_w_u(uint32 pa)
 }
 
 /*
- * Read Word (Physical Address)
- */
-uint32 pread_w(uint32 pa)
-{
-    /* Alignment exception */
-    if (pa & 3) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return 0;
-    }
-
-    return pread_w_u(pa);
-}
-
-/*
  * Write Word (Physical Address, Unaligned)
  */
-void pwrite_w_u(uint32 pa, uint32 val)
+void pwrite_w(uint32 pa, uint32 val)
 {
     uint32 *m;
     uint32 index;
@@ -189,20 +287,6 @@ void pwrite_w_u(uint32 pa, uint32 val)
     }
 
     m[index] = val;
-}
-
-/*
- * Write Word (Physical Address)
- */
-void pwrite_w(uint32 pa, uint32 val)
-{
-    /* Alignment exception */
-    if (pa & 3) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-        return;
-    }
-
-    pwrite_w_u(pa, val);
 }
 
 /*
@@ -327,4 +411,53 @@ void pwrite_b(uint32 pa, uint8 val)
     }
 
     m[index] = (m[index] & ~mask) | (val << sc);
+}
+
+/*
+ * MMU Virtual Read and Write Functions
+ */
+
+uint32 mmu_xlate_addr(uint32 addr)
+{
+    if (!mmu_enabled()) {
+        return addr;
+    }
+
+    /* MMU is enabled. Perform address translation */
+
+    return addr;
+}
+
+/*
+ * Dispatch functions
+ */
+
+SIM_INLINE uint8 read_b(uint32 va)
+{
+    return pread_b(mmu_xlate_addr(va));
+}
+
+SIM_INLINE uint16 read_h(uint32 va)
+{
+    return pread_h(mmu_xlate_addr(va));
+}
+
+SIM_INLINE uint32 read_w(uint32 va)
+{
+    return pread_w(mmu_xlate_addr(va));
+}
+
+SIM_INLINE void write_b(uint32 va, uint8 val)
+{
+    pwrite_b(mmu_xlate_addr(va), val);
+}
+
+SIM_INLINE void write_h(uint32 va, uint16 val)
+{
+    pwrite_h(mmu_xlate_addr(va), val);
+}
+
+SIM_INLINE void write_w(uint32 va, uint32 val)
+{
+    pwrite_w(mmu_xlate_addr(va), val);
 }

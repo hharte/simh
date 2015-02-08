@@ -56,8 +56,6 @@ int16  cpu_irq_ipl   = -1;     /* If set, the IRQ level */
 uint8  cpu_irq_id    = 0;      /* IRQ ID */
 t_bool cpu_nmi       = FALSE;  /* If set, there has been an NMI */
 
-/* mmu_en is controlled by ENBVJMP and DISVJMP */
-
 BITFIELD psw_bits[] = {
     BITFFMT(ET,2,%d),    /* Exception Type */
     BIT(TM),             /* Trace Mask */
@@ -460,13 +458,13 @@ t_stat cpu_boot(int32 unit_num, DEVICE *dptr)
 
     mmu_disable();
 
-    R[NUM_PCBP] = pread_w_u(0x80);
+    R[NUM_PCBP] = pread_w(0x80);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PCBP: %08x\n", R[NUM_PCBP]);
 
-    R[NUM_PSW] = pread_w_u(R[NUM_PCBP]);
+    R[NUM_PSW] = pread_w(R[NUM_PCBP]);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PSW: %08x\n", R[NUM_PSW]);
 
-    R[NUM_PC] = pread_w_u(R[NUM_PCBP] + 4);
+    R[NUM_PC] = pread_w(R[NUM_PCBP] + 4);
     sim_debug(INIT_MSG, &cpu_dev, "Setting initial PC: %08x\n", R[NUM_PC]);
 
     return SCPE_OK;
@@ -870,7 +868,7 @@ static uint8 decode_operand(uint32 pa, instr *instr, uint8 op_number)
     }
 
     /* Read in the descriptor byte */
-    desc = pread_b(pa + offset++);
+    desc = read_b(pa + offset++);
 
     oper->mode = (desc >> 4) & 0xf;
     oper->reg = desc & 0xf;
@@ -888,10 +886,10 @@ static uint8 decode_operand(uint32 pa, instr *instr, uint8 op_number)
     case 4:  /* Word Immediate, Register Mode */
         switch (oper->reg) {
         case 15: /* Word Immediate */
-            oper->embedded.w = pread_b(pa + offset++);
-            oper->embedded.w |= pread_b(pa + offset++) << 8;
-            oper->embedded.w |= pread_b(pa + offset++) << 16;
-            oper->embedded.w |= pread_b(pa + offset++) << 24;
+            oper->embedded.w = read_b(pa + offset++);
+            oper->embedded.w |= read_b(pa + offset++) << 8;
+            oper->embedded.w |= read_b(pa + offset++) << 16;
+            oper->embedded.w |= read_b(pa + offset++) << 24;
             break;
         default: /* Register mode */
             break;
@@ -900,8 +898,8 @@ static uint8 decode_operand(uint32 pa, instr *instr, uint8 op_number)
     case 5: /* Halfword Immediate, Register Deferred Mode */
         switch (oper->reg) {
         case 15: /* Halfword Immediate */
-            oper->embedded.h = pread_b(pa + offset++);
-            oper->embedded.h |= pread_b(pa + offset++) << 8;
+            oper->embedded.h = read_b(pa + offset++);
+            oper->embedded.h |= read_b(pa + offset++) << 8;
             break;
         case 11: /* INVALID */
             /* TODO: Confirm that INVALID_DESCRIPTOR is correct. */
@@ -915,7 +913,7 @@ static uint8 decode_operand(uint32 pa, instr *instr, uint8 op_number)
     case 6: /* Byte Immediate, FP Short Offset */
         switch (oper->reg) {
         case 15: /* Byte Immediate */
-            oper->embedded.b = pread_b(pa + offset++);
+            oper->embedded.b = read_b(pa + offset++);
             break;
         default: /* FP Short Offset */
             oper->embedded.b = oper->reg;
@@ -925,10 +923,10 @@ static uint8 decode_operand(uint32 pa, instr *instr, uint8 op_number)
     case 7: /* Absolute, AP Short Offset */
         switch (oper->reg) {
         case 15: /* Absolute */
-            oper->embedded.w = pread_b(pa + offset++);
-            oper->embedded.w |= pread_b(pa + offset++) << 8;
-            oper->embedded.w |= pread_b(pa + offset++) << 16;
-            oper->embedded.w |= pread_b(pa + offset++) << 24;
+            oper->embedded.w = read_b(pa + offset++);
+            oper->embedded.w |= read_b(pa + offset++) << 8;
+            oper->embedded.w |= read_b(pa + offset++) << 16;
+            oper->embedded.w |= read_b(pa + offset++) << 24;
             break;
         default: /* AP Short Offset */
             oper->embedded.b = oper->reg;
@@ -937,27 +935,27 @@ static uint8 decode_operand(uint32 pa, instr *instr, uint8 op_number)
         break;
     case 8: /* Word Displacement */
     case 9: /* Word Displacement Deferred */
-        oper->embedded.w = pread_b(pa + offset++);
-        oper->embedded.w |= pread_b(pa + offset++) << 8;
-        oper->embedded.w |= pread_b(pa + offset++) << 16;
-        oper->embedded.w |= pread_b(pa + offset++) << 24;
+        oper->embedded.w = read_b(pa + offset++);
+        oper->embedded.w |= read_b(pa + offset++) << 8;
+        oper->embedded.w |= read_b(pa + offset++) << 16;
+        oper->embedded.w |= read_b(pa + offset++) << 24;
         break;
     case 10: /* Halfword Displacement */
     case 11: /* Halfword Displacement Deferred */
-        oper->embedded.h = pread_b(pa + offset++);
-        oper->embedded.h |= pread_b(pa + offset++) << 8;
+        oper->embedded.h = read_b(pa + offset++);
+        oper->embedded.h |= read_b(pa + offset++) << 8;
         break;
     case 12: /* Byte Displacement */
     case 13: /* Byte Displacement Deferred */
-        oper->embedded.b = pread_b(pa + offset++);
+        oper->embedded.b = read_b(pa + offset++);
         break;
     case 14: /* Absolute Deferred, Extended-Operand */
         switch (oper->reg) {
         case 15: /* Absolute Deferred */
-            oper->embedded.w = pread_b(pa + offset++);
-            oper->embedded.w |= pread_b(pa + offset++) << 8;
-            oper->embedded.w |= pread_b(pa + offset++) << 16;
-            oper->embedded.w |= pread_b(pa + offset++) << 24;
+            oper->embedded.w = read_b(pa + offset++);
+            oper->embedded.w |= read_b(pa + offset++) << 8;
+            oper->embedded.w |= read_b(pa + offset++) << 16;
+            oper->embedded.w |= read_b(pa + offset++) << 24;
             break;
         case 0:
         case 2:
@@ -995,10 +993,10 @@ uint8 get_mnemonic(mnemonic **mn, uint32 pa)
     uint8 i;
     uint8 offset = 0;
 
-    opcode = pread_b(pa + offset++);
+    opcode = read_b(pa + offset++);
 
     if (opcode == 0x30) {
-        opcode = (opcode << 8) | pread_b(pa + offset++);
+        opcode = (opcode << 8) | read_b(pa + offset++);
 
         for (i = 0; i < HWORD_OP_COUNT; i++) {
             if (hword_ops[i].opcode == opcode) {
@@ -1063,21 +1061,17 @@ uint8 decode_instruction(instr *instr)
     case OP_NONE:
         break;
     case OP_BYTE:
-        instr->operands[0].embedded.b = pread_b(pa + offset++);
+        instr->operands[0].embedded.b = read_b(pa + offset++);
         break;
     case OP_HALF:
-        instr->operands[0].embedded.h = pread_b(pa + offset++);
-        instr->operands[0].embedded.h |= pread_b(pa + offset++) << 8;
+        instr->operands[0].embedded.h = read_b(pa + offset++);
+        instr->operands[0].embedded.h |= read_b(pa + offset++) << 8;
         break;
     case OP_COPR:
-        /* It's not clear to me from the documentation whether the
-           word following the opcode must be word-aligned or not. For
-           that reason, I'm going to use pread_b instead of pread_w to
-           avoid causing memory alignment exceptions. */
-        instr->operands[0].embedded.w = pread_b(pa + offset++);
-        instr->operands[0].embedded.w |= pread_b(pa + offset++) << 8;
-        instr->operands[0].embedded.w |= pread_b(pa + offset++) << 16;
-        instr->operands[0].embedded.w |= pread_b(pa + offset++) << 24;
+        instr->operands[0].embedded.w = read_b(pa + offset++);
+        instr->operands[0].embedded.w |= read_b(pa + offset++) << 8;
+        instr->operands[0].embedded.w |= read_b(pa + offset++) << 16;
+        instr->operands[0].embedded.w |= read_b(pa + offset++) << 24;
 
         /* Decode subsequent operands */
         for (i = 1; i < mn->op_count; i++) {
@@ -1100,9 +1094,9 @@ void cpu_context_switch(uint32 new_pcbp)
     uint32 cur_pcbp, new_pc, new_psw, new_sp;
 
     cur_pcbp = R[NUM_PCBP];
-    new_psw = pread_w(new_pcbp);
-    new_pc = pread_w(new_pcbp + 4);
-    new_sp = pread_w(new_pcbp + 8);
+    new_psw = read_w(new_pcbp);
+    new_pc = read_w(new_pcbp + 4);
+    new_sp = read_w(new_pcbp + 8);
 
     sim_debug(IRQ_MSG, &cpu_dev,
               "[Context Switch] New PCBP=%08x, New PSW=%08x, New PC=%08x, New SP=%08x\n",
@@ -1118,23 +1112,23 @@ void cpu_context_switch(uint32 new_pcbp)
     R[NUM_PSW] |= (new_psw & PSW_R_MASK);
 
     /* Save the PSW, PC, and SP in the current PCB */
-    pwrite_w(cur_pcbp, R[NUM_PSW]);
-    pwrite_w(cur_pcbp + 4, R[NUM_PC]);
-    pwrite_w(cur_pcbp + 8, R[NUM_SP]);
+    write_w(cur_pcbp, R[NUM_PSW]);
+    write_w(cur_pcbp + 4, R[NUM_PC]);
+    write_w(cur_pcbp + 8, R[NUM_SP]);
 
     /* If R is set, save current R0-R8/FP/AP in PCB */
     if (R[NUM_PSW] & PSW_R_MASK) {
-        pwrite_w(cur_pcbp + 20, R[NUM_AP]);
-        pwrite_w(cur_pcbp + 24, R[NUM_FP]);
-        pwrite_w(cur_pcbp + 28, R[0]);
-        pwrite_w(cur_pcbp + 32, R[1]);
-        pwrite_w(cur_pcbp + 36, R[2]);
-        pwrite_w(cur_pcbp + 40, R[3]);
-        pwrite_w(cur_pcbp + 44, R[4]);
-        pwrite_w(cur_pcbp + 48, R[5]);
-        pwrite_w(cur_pcbp + 52, R[6]);
-        pwrite_w(cur_pcbp + 56, R[7]);
-        pwrite_w(cur_pcbp + 60, R[8]);
+        write_w(cur_pcbp + 20, R[NUM_AP]);
+        write_w(cur_pcbp + 24, R[NUM_FP]);
+        write_w(cur_pcbp + 28, R[0]);
+        write_w(cur_pcbp + 32, R[1]);
+        write_w(cur_pcbp + 36, R[2]);
+        write_w(cur_pcbp + 40, R[3]);
+        write_w(cur_pcbp + 44, R[4]);
+        write_w(cur_pcbp + 48, R[5]);
+        write_w(cur_pcbp + 52, R[6]);
+        write_w(cur_pcbp + 56, R[7]);
+        write_w(cur_pcbp + 60, R[8]);
     }
 
     /* Call XSWITCH_TWO() microroutine to load the new PCBP */
@@ -1197,7 +1191,7 @@ t_bool cpu_handle_irq(uint16 ipl, uint8 id, t_bool nmi)
 
 
     new_pcbp_addr = 0x8c + (4 * id);
-    new_pcbp = pread_w(new_pcbp_addr);
+    new_pcbp = read_w(new_pcbp_addr);
 
     /* Save the old PCBP */
     irq_push_word(R[NUM_PCBP]);
@@ -1623,6 +1617,14 @@ t_stat sim_instr(void)
             cpu_set_flags(tmp_c, dst, FALSE, FALSE);
 
             break;
+        case ENBVJMP:
+            if (cpu_execution_level() != EX_LVL_KERN) {
+                cpu_set_exception(NORMAL_EXCEPTION, PRIVILEGED_OPCODE);
+                break;
+            }
+            mmu_enable();
+            R[NUM_PC] = R[0];
+            continue;
         case EXTFW:
         case EXTFH:
         case EXTFB:
@@ -1678,7 +1680,7 @@ t_stat sim_instr(void)
             continue;
         case JSB:
             cpu_push_word(R[NUM_PC] + len);
-            R[NUM_PC] += pread_w_u(cpu_read_op(dst));
+            R[NUM_PC] += read_w(cpu_read_op(dst));
             break;
         case ALSW3:
         case LLSW3:
@@ -1710,7 +1712,7 @@ t_stat sim_instr(void)
             break;
         case MOVBLW:
             while (--R[2] > 0) {
-                pwrite_w_u(R[1], pread_w_u(R[0]));
+                write_w(R[1], read_w(R[0]));
                 R[0] += 4;
                 R[1] += 4;
             }
@@ -1846,12 +1848,31 @@ t_stat sim_instr(void)
             cpu_push_word(tmp_a);
             cpu_set_flags(tmp_a, src1, FALSE, FALSE);
             break;
+        case RGEQ:
+            if (cpu_n_flag() == 0 || cpu_z_flag() == 1) {
+                R[NUM_PC] = cpu_pop_word();
+                continue;
+            }
+            break;
+        case RGEQU:
+            if (cpu_c_flag() == 0) {
+                R[NUM_PC] = cpu_pop_word();
+                continue;
+            }
+            break;
+        case RGTR:
+            if ((cpu_n_flag() | cpu_z_flag()) == 0) {
+                R[NUM_PC] = cpu_pop_word();
+                continue;
+            }
+            break;
         case RNEQ:
         case RNEQU:
             if (cpu_z_flag() == 0) {
                 R[NUM_PC] = cpu_pop_word();
+                continue;
             }
-            continue;
+            break;
         case RET:
             tmp_a = R[NUM_AP];
             tmp_b = cpu_pop_word();
@@ -1924,11 +1945,11 @@ t_stat sim_instr(void)
             break;
         case RESTORE:
             tmp_a = R[NUM_FP] - 28;
-            tmp_b = pread_w(tmp_a);
+            tmp_b = read_w(tmp_a);
             tmp_c = R[NUM_FP] - 24;
 
             for (tmp_d = src1->reg; tmp_d < NUM_FP; tmp_d++) {
-                R[tmp_d] = pread_w(tmp_c);
+                R[tmp_d] = read_w(tmp_c);
                 tmp_c += 4;
             }
 
@@ -1967,8 +1988,8 @@ t_stat sim_instr(void)
             tmp_b = 0;
 
             do {
-                tmp_b = pread_b(R[0] + tmp_a);
-                pwrite_b(R[1] + tmp_a, tmp_b);
+                tmp_b = read_b(R[0] + tmp_a);
+                write_b(R[1] + tmp_a, tmp_b);
                 tmp_a++;
             } while (tmp_b != '\0');
 
@@ -2035,8 +2056,11 @@ t_stat sim_instr(void)
 void cpu_perform_gate(uint32 index1, uint32 index2)
 {
     uint32 pa, old_psw, new_psw;
+    uint8 old_lvl;
 
-    /* TODO: Force kernel level */
+    old_lvl = cpu_execution_level();
+
+    cpu_set_execution_level(EX_LVL_KERN);
 
     /* TODO: Possibly generate stack-bounds exception */
     old_psw = R[NUM_PSW];
@@ -2051,9 +2075,9 @@ void cpu_perform_gate(uint32 index1, uint32 index2)
     /* Save the PSW */
     cpu_push_word(R[NUM_PSW]);
 
-    pa = pread_w(index1) + index2;
+    pa = read_w(index1) + index2;
 
-    new_psw = pread_w(pa);
+    new_psw = read_w(pa);
 
     new_psw |= (old_psw & PSW_CM_MASK) << 2;
     new_psw |= 3;
@@ -2067,10 +2091,10 @@ void cpu_perform_gate(uint32 index1, uint32 index2)
     sim_debug(EXECUTE_MSG, &cpu_dev,
               "*** setting new pc from pa: %08x\n", pa + 4);
 
-    R[NUM_PC] = pread_w(pa + 4);
+    R[NUM_PC] = read_w(pa + 4);
     R[NUM_PSW] = new_psw;
 
-    /* TODO: Un-force kernel level */
+    cpu_set_execution_level(old_lvl);
 }
 
 static uint32 cpu_effective_address(operand * op)
@@ -2088,7 +2112,7 @@ static uint32 cpu_effective_address(operand * op)
     /* Absolute Deferred */
     if (op->mode == 14 && op->reg == 15) {
         /* May cause exception */
-        return pread_w_u(op->embedded.w);
+        return read_w(op->embedded.w);
     }
 
     /* FP Short Offset */
@@ -2108,7 +2132,7 @@ static uint32 cpu_effective_address(operand * op)
 
     /* Word Displacement Deferred */
     if (op->mode == 9) {
-        return pread_w_u(R[op->reg] + (int32)op->embedded.w);
+        return read_w(R[op->reg] + (int32)op->embedded.w);
     }
 
     /* Halfword Displacement */
@@ -2118,7 +2142,7 @@ static uint32 cpu_effective_address(operand * op)
 
     /* Halfword Displacement Deferred */
     if (op->mode == 11) {
-        return pread_w_u(R[op->reg] + (int16)op->embedded.h);
+        return read_w(R[op->reg] + (int16)op->embedded.h);
     }
 
     /* Byte Displacement */
@@ -2128,7 +2152,7 @@ static uint32 cpu_effective_address(operand * op)
 
     /* Byte Displacement Deferred */
     if (op->mode == 13) {
-        return pread_w_u(R[op->reg] + (int8)op->embedded.b);
+        return read_w(R[op->reg] + (int8)op->embedded.b);
     }
 
     sim_debug(DECODE_MSG, &cpu_dev,
@@ -2249,17 +2273,17 @@ static int32 cpu_read_op(operand * op)
     switch (op_type(op)) {
     case WD: /* Signed Word */
     case UW: /* Unsigned Word */
-        data = pread_w_u(eff);
+        data = read_w(eff);
         op->data = data;
         return data;
     case HW: /* Signed Halfword */
     case UH: /* Unsigned Halfword */
-        data = pread_h(eff);
+        data = read_h(eff);
         op->data = data;
         return data;
     case BT: /* Unsigned Byte */
     case SB: /* Signed Byte */
-        data = pread_b(eff);
+        data = read_b(eff);
         op->data = data;
         return data;
     default:
@@ -2324,17 +2348,17 @@ static void cpu_write_op(operand * op, int32 val)
     switch (op_type(op)) {
     case UW:
     case WD:
-        pwrite_w(eff, val);
+        write_w(eff, val);
         break;
     case HW:
     case UH:
         op->data = val & 0xffff;
-        pwrite_h(eff, op->data);
+        write_h(eff, op->data);
         break;
     case SB:
     case BT:
         op->data = val & 0xff;
-        pwrite_b(eff, op->data);
+        write_b(eff, op->data);
         break;
     default:
         assert(0);
@@ -2596,26 +2620,26 @@ static void cpu_set_flags(uint32 data, operand *op, t_bool overflow, t_bool carr
 
 static void cpu_push_word(uint32 val)
 {
-    pwrite_w(R[NUM_SP], val);
+    write_w(R[NUM_SP], val);
     R[NUM_SP] += 4;
 }
 
 static uint32 cpu_pop_word()
 {
     R[NUM_SP] -= 4;
-    return pread_w(R[NUM_SP]);
+    return read_w(R[NUM_SP]);
 }
 
 static void irq_push_word(uint32 val)
 {
-    pwrite_w(R[NUM_ISP], val);
+    write_w(R[NUM_ISP], val);
     R[NUM_ISP] += 4;
 }
 
 static uint32 irq_pop_word()
 {
     R[NUM_ISP] -= 4;
-    return pread_w(R[NUM_ISP]);
+    return read_w(R[NUM_ISP]);
 }
 
 static SIM_INLINE t_bool op_is_psw(operand *op)
