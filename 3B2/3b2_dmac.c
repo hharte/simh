@@ -217,11 +217,24 @@ void dmac_service_id(uint32 service_address)
     // TODO: implement
 }
 
-static SIM_INLINE uint32 dma_address(uint8 channel, uint32 offset) {
-    return (PHYS_MEM_BASE +
+static SIM_INLINE uint32 dma_address(uint8 channel, uint32 offset, t_bool r) {
+    uint32 addr;
+
+    addr = (PHYS_MEM_BASE +
             dma_state.channels[channel].addr +
-            (dma_state.channels[channel].page << 16) +
             offset);
+
+    /* It seems as though we don't honor the page on writes, only on
+       reads. This is extremely confusing and I wish I could find
+       documentation or source code to justify this observation apart
+       from a few obscure #defines in SVR3 and the behavior of
+       "newkey" in the PROM */
+    
+    if (r) {
+        addr += dma_state.channels[channel].page << 16;
+    }
+    
+    return addr;
 }
 
 /*
@@ -241,7 +254,7 @@ void dmac_service_if(uint32 service_address)
     case DMA_MODE_WRITE:
         offset = 0;
         for (i = dma_state.channels[DMA_IF_CHAN].wcount; i >= 0; i--) {
-            addr = dma_address(DMA_IF_CHAN, offset++);
+            addr = dma_address(DMA_IF_CHAN, offset++, FALSE);
             data = read_b(addr);
             write_b(service_address, data);
         }
@@ -253,7 +266,7 @@ void dmac_service_if(uint32 service_address)
     case DMA_MODE_READ:
         offset = 0;
         for (i = dma_state.channels[DMA_IF_CHAN].wcount; i >= 0; i--) {
-            addr = dma_address(DMA_IF_CHAN, offset++);
+            addr = dma_address(DMA_IF_CHAN, offset++, TRUE);
             data = read_b(service_address);
             write_b(addr, data);
         }

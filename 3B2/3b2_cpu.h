@@ -358,6 +358,8 @@ t_stat cpu_reset(DEVICE *dptr);
 t_stat cpu_set_size(UNIT *uptr, int32 val, char *cptr, void *desc);
 t_stat cpu_set_hist(UNIT *uptr, int32 val, char *cptr, void *desc);
 t_stat cpu_show_hist(FILE *st, UNIT *uptr, int32 val, void *desc);
+t_stat cpu_set_halt(UNIT *uptr, int32 val, char *cptr, void *desc);
+t_stat cpu_clear_halt(UNIT *uptr, int32 val, char *cptr, void *desc);
 t_stat cpu_boot(int32 unit_num, DEVICE *dptr);
 
 void cpu_register_name(uint8 reg, char *buf, int8 len);
@@ -409,5 +411,6 @@ static void irq_push_word(uint32 val);
 static uint32 irq_pop_word();
 static void cpu_context_switch(uint32 pcbp);
 static SIM_INLINE t_bool op_is_psw(operand *op);
+static SIM_INLINE uint32 cpu_next_pc();
 
 #endif

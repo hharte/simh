@@ -78,6 +78,7 @@
 #define STOP_IBKPT  2
 #define STOP_OPCODE 3
 #define STOP_IRQ    4
+#define STOP_EX     5
 
 /* Debug flags */
 #define READ_MSG    (1 << 0)

@@ -56,6 +56,10 @@ int16  cpu_irq_ipl   = -1;     /* If set, the IRQ level */
 uint8  cpu_irq_id    = 0;      /* IRQ ID */
 t_bool cpu_nmi       = FALSE;  /* If set, there has been an NMI */
 
+uint8  cpu_ilen      = 0;      /* Length (in bytes) of instruction
+                                  currently being executed */
+t_bool cpu_ex_halt   = FALSE;  /* Flag to halt on exceptions / traps */
+
 BITFIELD psw_bits[] = {
     BITFFMT(ET,2,%d),    /* Exception Type */
     BIT(TM),             /* Trace Mask */
@@ -112,6 +116,9 @@ static DEBTAB cpu_deb_tab[] = {
 
 UNIT cpu_unit = { UDATA (NULL, UNIT_FIX|UNIT_BINK, MAXMEMSIZE) };
 
+#define UNIT_V_EXHALT   (UNIT_V_UF + 0)                 /* halt to console */
+#define UNIT_EXHALT     (1u << UNIT_V_EXHALT)
+
 MTAB cpu_mod[] = {
     { UNIT_MSIZE, (1u << 20), NULL, "1M",
       &cpu_set_size, NULL, NULL, "Set Memory to 1M bytes" },
@@ -121,6 +128,10 @@ MTAB cpu_mod[] = {
       &cpu_set_size, NULL, NULL, "Set Memory to 4M bytes" },
     { MTAB_XTD|MTAB_VDV|MTAB_NMO|MTAB_SHP, 0, "HISTORY", "HISTORY",
       &cpu_set_hist, &cpu_show_hist, NULL, "Displays instruction history" },
+    { UNIT_EXHALT, UNIT_EXHALT, "Halt on Exception", "EX_HALT",
+      NULL, NULL, NULL, "Enables Halt on exceptions and traps" },
+    { UNIT_EXHALT, 0, "No halt on exception", "NOEX_HALT",
+      NULL, NULL, NULL, "Disables Halt on exceptions and traps" },
     { 0 }
 };
 
@@ -363,10 +374,10 @@ mnemonic ops[256] = {
     {0xc1, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0xc2, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0xc3, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0xc4,  3, OP_DESC, WD, "ARSW3",  -1, -1, -1, -1},
+    {0xc4,  3, OP_DESC, WD, "ARSW3",   0,  1, -1,  2},
     {0xc5, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0xc6,  3, OP_DESC, HW, "ARSH3",  -1, -1, -1, -1},
-    {0xc7,  3, OP_DESC, BT, "ARSB3",  -1, -1, -1, -1},
+    {0xc6,  3, OP_DESC, HW, "ARSH3",   0,  1, -1,  2},
+    {0xc7,  3, OP_DESC, BT, "ARSB3",   0,  1, -1,  2},
     {0xc8,  4, OP_DESC, WD, "INSFW",   0,  1,  2,  3},
     {0xc9, -1, OP_DESC, NA, "???",    -1, -1, -1, -1},
     {0xca,  4, OP_DESC, HW, "INSFH",   0,  1,  2,  3},
@@ -539,6 +550,19 @@ t_stat cpu_reset(DEVICE *dptr)
 
     return SCPE_OK;
 }
+
+t_stat cpu_set_halt(UNIT *uptr, int32 val, char *cptr, void *desc)
+{
+    cpu_ex_halt = TRUE;
+    return SCPE_OK;
+}
+
+t_stat cpu_clear_halt(UNIT *uptr, int32 val, char *cptr, void *desc)
+{
+    cpu_ex_halt = FALSE;
+    return SCPE_OK;
+}
+
 
 t_stat cpu_set_hist(UNIT *uptr, int32 val, char *cptr, void *desc)
 {
@@ -1100,14 +1124,11 @@ void cpu_context_switch(uint32 new_pcbp)
     new_pc = read_w(new_pcbp + 4);
     new_sp = read_w(new_pcbp + 8);
 
-    sim_debug(IRQ_MSG, &cpu_dev,
+    sim_debug(EXECUTE_MSG, &cpu_dev,
               "[Context Switch] New PCBP=%08x, New PSW=%08x, New PC=%08x, New SP=%08x\n",
               new_pcbp, new_psw, new_pc, new_sp);
 
     /* Call XSWITCH_ONE() microroutine to save process context */
-
-    /* TODO: Move this to something sane, like a 'pcb' structure that
-       points at the right location in the 'M' memory blob */
 
     /* Copy the 'R' flag from the new PSW to the old PSW */
     R[NUM_PSW] &= ~PSW_R_MASK;
@@ -1115,7 +1136,7 @@ void cpu_context_switch(uint32 new_pcbp)
 
     /* Save the PSW, PC, and SP in the current PCB */
     write_w(cur_pcbp, R[NUM_PSW]);
-    write_w(cur_pcbp + 4, R[NUM_PC]);
+    write_w(cur_pcbp + 4, cpu_next_pc());
     write_w(cur_pcbp + 8, R[NUM_SP]);
 
     /* If R is set, save current R0-R8/FP/AP in PCB */
@@ -1142,7 +1163,7 @@ void cpu_context_switch(uint32 new_pcbp)
 
     /* If I bit is set, increment PCBP past initial context area */
     if (R[NUM_PSW] & PSW_I_MASK) {
-        sim_debug(IRQ_MSG, &cpu_dev,
+        sim_debug(EXECUTE_MSG, &cpu_dev,
                   "PSW<I> is set, incrementing PCBP by 12\n");
         R[NUM_PSW] &= ~PSW_I_MASK;
         R[NUM_PCBP] += 12;
@@ -1156,6 +1177,39 @@ void cpu_context_switch(uint32 new_pcbp)
 
     R[NUM_PSW] &= ~PSW_ET_MASK;
     R[NUM_PSW] |= (3 << PSW_ET);
+
+    /* Call XSWITCH_THREE() microroutine to do block moves */
+    if (R[NUM_PSW] & PSW_R_MASK) {
+
+        R[0] = R[NUM_PCBP] + 64;
+        R[2] = read_w(R[0]);
+        R[0] += 4;
+
+        sim_debug(EXECUTE_MSG, &cpu_dev,
+                  "XSWITCH_THREE(): Block Size = %08x\n",
+                  R[2]);
+
+        while (R[2] != 0) {
+            R[1] = read_w(R[0]);
+            R[0] += 4;
+
+            sim_debug(EXECUTE_MSG, &cpu_dev,
+                      "    >>> Doing block move of %d bytes from %08x to %08x\n",
+                      R[2], R[0], R[1]);
+
+            /* MOVBLW */
+            while (--R[2] > 0) {
+                write_w(R[1], read_w(R[0]));
+                R[0] += 4;
+                R[1] += 4;
+            }
+
+            R[2] = read_w(R[0]);
+            R[0] += 4;
+        }
+
+        R[0] = R[0] + 4;
+    }
 }
 
 t_bool cpu_handle_irq(uint16 ipl, uint8 id, t_bool nmi)
@@ -1224,8 +1278,6 @@ t_stat sim_instr(void)
     /* Used for field calculation */
     uint32   width, offset, mask;
 
-    uint8 len = 0;
-
     operand *src1, *src2, *src3, *dst;
 
     while (reason == 0) {
@@ -1271,7 +1323,7 @@ t_stat sim_instr(void)
         i = cpu_next_instruction();
 
         /* Decode the instruction */
-        len = decode_instruction(i);
+        cpu_ilen = decode_instruction(i);
 
         /*
          * Operate on the decoded instruction, handle traps and
@@ -1280,15 +1332,16 @@ t_stat sim_instr(void)
 
         /* If an exception occured during decode, handle it. */
         if (cpu_exception) {
+            if (cpu_unit.flags & UNIT_EXHALT) {
+                reason = STOP_EX;
+            }
+
             et  = R[NUM_PSW] & 3;
             isc = (R[NUM_PSW] & PSW_ISC_MASK) >> PSW_ISC;
 
             sim_debug(EXECUTE_MSG, &cpu_dev,
                       "*** [PC=%08x]: DECODE EXCEPTION! et=%d, isc=%d\n",
                       R[NUM_PC], et, isc);
-
-            /* TODO: Abort processing and go straight to exception
-               handling! */
         }
 
 
@@ -1501,11 +1554,11 @@ t_stat sim_instr(void)
             R[NUM_PC] += (int8)(dst->embedded.b);
             continue;
         case BSBH:
-            cpu_push_word(R[NUM_PC] + len);
+            cpu_push_word(cpu_next_pc());
             R[NUM_PC] += (int16)(dst->embedded.h);
             continue;
         case BSBB:
-            cpu_push_word(R[NUM_PC] + len);
+            cpu_push_word(cpu_next_pc());
             R[NUM_PC] += (int8)(dst->embedded.b);
             continue;
         case BVCH:
@@ -1535,10 +1588,27 @@ t_stat sim_instr(void)
         case CALL:
             tmp_a = cpu_effective_address(src1);
             tmp_b = cpu_effective_address(dst);
-            cpu_push_word(R[NUM_PC] + len);
+            cpu_push_word(cpu_next_pc());
             cpu_push_word(R[NUM_AP]);
             R[NUM_AP] = tmp_a;
             R[NUM_PC] = tmp_b;
+            continue;
+        case CALLPS:
+            if (cpu_execution_level() != EX_LVL_KERN) {
+                cpu_set_exception(NORMAL_EXCEPTION, PRIVILEGED_OPCODE);
+                break;
+            }
+
+            tmp_a = R[0];
+
+            irq_push_word(R[NUM_PCBP]);
+
+            cpu_context_switch(tmp_a);
+
+            sim_debug(EXECUTE_MSG, &cpu_dev,
+                      ">>> CALLPS: R[0] = %08x. After call, PC=%08x\n",
+                      tmp_a, R[NUM_PC]);
+
             continue;
         case CLRW:
         case CLRH:
@@ -1681,9 +1751,9 @@ t_stat sim_instr(void)
             R[NUM_PC] = cpu_effective_address(dst);
             continue;
         case JSB:
-            cpu_push_word(R[NUM_PC] + len);
-            R[NUM_PC] += read_w(cpu_read_op(dst));
-            break;
+            cpu_push_word(cpu_next_pc());
+            R[NUM_PC] = cpu_effective_address(dst);
+            continue;
         case ALSW3:
         case LLSW3:
             tmp_ul = cpu_read_op(src2) << (cpu_read_op(src1) & 0x1f);
@@ -1700,6 +1770,9 @@ t_stat sim_instr(void)
             cpu_write_op(dst, (uint8)(tmp_a & BYTE_MASK));
             cpu_set_flags(tmp_a, dst, tmp_a > BYTE_MASK, FALSE);
             break;
+        case ARSW3:
+        case ARSH3:
+        case ARSB3:
         case LRSW3:
             tmp_a = cpu_read_op(src2) >> (cpu_read_op(src1) & 0x1f);
             cpu_write_op(dst, tmp_a);
@@ -1816,10 +1889,10 @@ t_stat sim_instr(void)
         case NOP:
             break;
         case NOP2:
-            len += 1;
+            cpu_ilen += 1;
             break;
         case NOP3:
-            len += 2;
+            cpu_ilen += 2;
             break;
         case ORW2:
         case ORH2:
@@ -1914,13 +1987,28 @@ t_stat sim_instr(void)
 
             continue;
         case RETPS:
+            if (cpu_execution_level() != EX_LVL_KERN) {
+                cpu_set_exception(NORMAL_EXCEPTION, PRIVILEGED_OPCODE);
+                break;
+            }
+
             /* Restore process state */
             tmp_a = irq_pop_word();
+
+            sim_debug(EXECUTE_MSG, &cpu_dev,
+                      ">>> RETPS: tmp_a = %08x.\n",
+                      tmp_a);
 
             /* tmp_a now holds the new PCBP */
             cpu_context_switch(tmp_a);
 
             continue;
+        case SPOP:
+        case SPOPRS:
+        case SPOPRD:
+        case SPOPRT:
+            /* Co-processor instruction: Unimplemented */
+            break;
         case SUBW2:
         case SUBH2:
         case SUBB2:
@@ -1970,6 +2058,9 @@ t_stat sim_instr(void)
                 continue;
             }
             break;
+        case RSB:
+            R[NUM_PC] = cpu_pop_word();
+            continue;
         case SAVE:
             tmp_a = R[NUM_SP];
 
@@ -2022,6 +2113,11 @@ t_stat sim_instr(void)
         };
 
         if (cpu_exception) {
+
+            if (cpu_unit.flags & UNIT_EXHALT) {
+                reason = STOP_EX;
+            }
+
             et  = R[NUM_PSW] & 3;
             isc = (R[NUM_PSW] & PSW_ISC_MASK) >> PSW_ISC;
 
@@ -2039,16 +2135,22 @@ t_stat sim_instr(void)
         }
 
         /* Increment the PC appropriately */
-        R[NUM_PC] += len;
+        R[NUM_PC] += cpu_ilen;
 
         /* Now that we have incremented the PC, we look for traps */
         if (cpu_trap) {
+
+            if (cpu_unit.flags & UNIT_EXHALT) {
+                reason = STOP_EX;
+            }
+
             et  = R[NUM_PSW] & 3;
             isc = (R[NUM_PSW] & PSW_ISC_MASK) >> PSW_ISC;
 
             sim_debug(EXECUTE_MSG, &cpu_dev,
                       "*** [PC=%08x]: CPU TRAP: et=%d, isc=%d\n",
-                      R[NUM_PC] - len, et, isc);
+                      R[NUM_PC] - cpu_ilen, et, isc);
+
         }
     }
 
@@ -2156,10 +2258,6 @@ static uint32 cpu_effective_address(operand * op)
     if (op->mode == 13) {
         return read_w(R[op->reg] + (int8)op->embedded.b);
     }
-
-    sim_debug(DECODE_MSG, &cpu_dev,
-              "[DBG] Failure at PC=%08x\n",
-              R[NUM_PC]);
 
     assert(0);
 
@@ -2311,20 +2409,20 @@ static void cpu_write_op(operand * op, int32 val)
         case WD:
         case UW:
             R[op->reg] = val;
-            op->data = R[op->reg];
             break;
         case BT:
-            R[op->reg] = val;
-            op->data = R[op->reg];
+        case SB:
+            if (val > BYTE_MASK) {
+                cpu_set_v_flag(TRUE);
+            }
+            R[op->reg] = val & 0xff;
             break;
         case UH:
-        case SB:
-            R[op->reg] = val & 0xfff;
-            op->data = R[op->reg];
-            break;
         case HW:
-            R[op->reg] = val;
-            op->data = R[op->reg];
+            if (val > HALF_MASK) {
+                cpu_set_v_flag(TRUE);
+            }
+            R[op->reg] = val & 0xffff;
             break;
         default:
             assert(0);
@@ -2335,12 +2433,14 @@ static void cpu_write_op(operand * op, int32 val)
     /* Literal mode is not legal. */
     if (op->mode < 4 || op->mode == 15) {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+        sim_debug(EXECUTE_MSG, &cpu_dev, "[DBG] Exception because literal mode is not allowed.\n");
         return;
     }
 
     /* Immediate mode is not legal. */
     if (op->reg == 15 &&
         (op->mode == 4 || op->mode == 5 || op->mode == 6)) {
+        sim_debug(EXECUTE_MSG, &cpu_dev, "[DBG] Exception because immedaite mode is not allowed.\n");
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
         return;
     }
@@ -2354,13 +2454,17 @@ static void cpu_write_op(operand * op, int32 val)
         break;
     case HW:
     case UH:
-        op->data = val & 0xffff;
-        write_h(eff, op->data);
+        if (val > HALF_MASK) {
+            cpu_set_v_flag(TRUE);
+        }
+        write_h(eff, val & HALF_MASK);
         break;
     case SB:
     case BT:
-        op->data = val & 0xff;
-        write_b(eff, op->data);
+        if (val > BYTE_MASK) {
+            cpu_set_v_flag(TRUE);
+        }
+        write_b(eff, val & BYTE_MASK);
         break;
     default:
         assert(0);
@@ -2522,8 +2626,8 @@ static SIM_INLINE void cpu_set_execution_level(uint8 level)
     uint8 old_level = cpu_execution_level();
 
     /* Store the previous execution level */
-    R[NUM_PSW] = R[NUM_PSW] | (old_level & 0x3) << PSW_PM;
-    R[NUM_PSW] = R[NUM_PSW] | (level & 0x3) << PSW_CM;
+    R[NUM_PSW] |= (old_level & 0x3) << PSW_PM;
+    R[NUM_PSW] |= (level & 0x3) << PSW_CM;
 }
 
 static SIM_INLINE t_bool cpu_z_flag()
@@ -2594,11 +2698,7 @@ static void cpu_set_flags(uint32 data, operand *op, t_bool overflow, t_bool carr
     }
 
     /* Negative flag */
-    /* TODO: This is probably wrong. Should we look at MSB of word, or
-       MSB of data type? */
-    if ((type == WD && data & MSB) ||
-        (type == HW && data & 0x8000) ||
-        (type == BT && data & 0x80)) {
+    if (data & MSB) {
         R[NUM_PSW] = R[NUM_PSW] | PSW_N_MASK;
     } else {
         R[NUM_PSW] = R[NUM_PSW] & ~PSW_N_MASK;
@@ -2647,4 +2747,9 @@ static uint32 irq_pop_word()
 static SIM_INLINE t_bool op_is_psw(operand *op)
 {
     return (op->mode == 4 && op->reg == 11);
+}
+
+static SIM_INLINE uint32 cpu_next_pc()
+{
+    return R[NUM_PC] + cpu_ilen;
 }

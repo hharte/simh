@@ -247,6 +247,10 @@ uint32 pread_w(uint32 pa)
     uint32 *m;
     uint32 index;
 
+    if (pa & 3) {
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+    }
+
     if (addr_is_io(pa)) {
         return io_read(pa, 32);
     }
@@ -270,8 +274,10 @@ uint32 pread_w(uint32 pa)
  */
 void pwrite_w(uint32 pa, uint32 val)
 {
-    uint32 *m;
-    uint32 index;
+
+    if (pa & 3) {
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+    }
 
     if (addr_is_io(pa)) {
         io_write(pa, val, 32);
@@ -279,13 +285,10 @@ void pwrite_w(uint32 pa, uint32 val)
     }
 
     if (addr_is_mem(pa)) {
-        m = RAM;
-        index = (pa - PHYS_MEM_BASE) >> 2;
+        RAM[(pa - PHYS_MEM_BASE) >> 2] = val;
     } else {
         cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
     }
-
-    m[index] = val;
 }
 
 /*

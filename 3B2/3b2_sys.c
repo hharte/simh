@@ -61,7 +61,8 @@ const char *sim_stop_messages[] = {
     "Reserved Instruction",
     "Breakpoint",
     "Invalid Opcode",
-    "IRQ"
+    "IRQ",
+    "Exception/Trap"
 };
 
 t_stat sim_load(FILE *fileref, char *cptr, char *fnam, int flag)

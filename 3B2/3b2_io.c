@@ -39,7 +39,7 @@ struct iolink iotable[] = {
     { DMACBASE,   DMACBASE+DMACSIZE,     &dmac_read,  &dmac_write  },
     { DMAIFBASE,  DMAIFBASE+DMAIFSIZE,   &dmac_read,  &dmac_write  },
     { IFBASE,     IFBASE+IFSIZE,         &if_read,    &if_write    },
-    { IDBASE,     IDBASE+IFSIZE,         &id_read,    &id_write    },
+    { IDBASE,     IDBASE+IDSIZE,         &id_read,    &id_write    },
     { 0, 0, NULL, NULL}
 };
 
@@ -57,18 +57,18 @@ uint32 io_read(uint32 pa, uint8 size)
            0x03: 4MB   (4,194,304 B)
         */
         /* TODO: Implement correctly */
-        return 3;
+        return 1;
     }
 
     /* IO Board Area - Unimplemented */
     if (pa >= 0x200000 && pa < 0x2000000) {
         sim_debug(IO_D_MSG, &cpu_dev, "[%08x] [IO BOARD READ] ADDR=%08x\n", R[NUM_PC], pa);
-        /* TODO: This is an experiment */
+
+        /* This is an experiment. Device id 0x0003 is "PORTS", a
+           4-port serial board */
         switch(pa) {
         case 0x200001:
-            return 0x02;
-        case 0x200000:
-            return 0x00;
+            return 0x03;
         default:
             return 0;
         };
