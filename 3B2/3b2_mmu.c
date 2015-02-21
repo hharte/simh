@@ -239,17 +239,10 @@ t_bool addr_is_io(uint32 pa)
  * least-significant byte.
  */
 
-/*
- * Read Word (Physical Address, Unaligned)
- */
-uint32 pread_w(uint32 pa)
+uint32 pread_w_u(uint32 pa)
 {
     uint32 *m;
     uint32 index;
-
-    if (pa & 3) {
-        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
-    }
 
     if (addr_is_io(pa)) {
         return io_read(pa, 32);
@@ -267,6 +260,18 @@ uint32 pread_w(uint32 pa)
     }
 
     return m[index];
+}
+
+/*
+ * Read Word (Physical Address, Unaligned)
+ */
+uint32 pread_w(uint32 pa)
+{
+    if (pa & 3) {
+        cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
+    }
+
+    return pread_w_u(pa);
 }
 
 /*
@@ -441,6 +446,11 @@ SIM_INLINE uint16 read_h(uint32 va)
 SIM_INLINE uint32 read_w(uint32 va)
 {
     return pread_w(mmu_xlate_addr(va));
+}
+
+SIM_INLINE uint32 read_w_u(uint32 va)
+{
+    return pread_w_u(mmu_xlate_addr(va));
 }
 
 SIM_INLINE void write_b(uint32 va, uint8 val)

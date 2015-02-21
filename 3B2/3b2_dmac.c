@@ -250,8 +250,12 @@ void dmac_service_if(uint32 service_address)
     switch ((dma_state.mode >> 2) & 0xf) {
     case DMA_MODE_VERIFY:
         /* TODO: Implement if necessary. */
+        sim_debug(WRITE_MSG, &dmac_dev, ">>> UNHANDLED DMAC VERIFY REQUEST.\n");
         break;
     case DMA_MODE_WRITE:
+        sim_debug(WRITE_MSG, &dmac_dev, ">>> DMAC WRITE: %d BYTES AT %08x\n",
+                  dma_state.channels[DMA_IF_CHAN].wcount + 1,
+                  dma_address(DMA_IF_CHAN, 0, FALSE));
         offset = 0;
         for (i = dma_state.channels[DMA_IF_CHAN].wcount; i >= 0; i--) {
             addr = dma_address(DMA_IF_CHAN, offset++, FALSE);
@@ -264,6 +268,9 @@ void dmac_service_if(uint32 service_address)
 
         break;
     case DMA_MODE_READ:
+        sim_debug(WRITE_MSG, &dmac_dev, ">>> DMAC READ: %d BYTES AT %08x\n",
+                  dma_state.channels[DMA_IF_CHAN].wcount + 1,
+                  dma_address(DMA_IF_CHAN, 0, TRUE));
         offset = 0;
         for (i = dma_state.channels[DMA_IF_CHAN].wcount; i >= 0; i--) {
             addr = dma_address(DMA_IF_CHAN, offset++, TRUE);

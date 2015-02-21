@@ -180,12 +180,12 @@ mnemonic hword_ops[HWORD_OP_COUNT] = {
 mnemonic ops[256] = {
     {0x00, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x01, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x02,  2, OP_COPR, NA, "SPOPRD", -1, -1, -1, -1},
-    {0x03,  3, OP_COPR, NA, "SPOPD2", -1, -1, -1, -1},
+    {0x02,  2, OP_COPR, WD, "SPOPRD", -1, -1, -1, -1},
+    {0x03,  3, OP_COPR, WD, "SPOPD2", -1, -1, -1, -1},
     {0x04,  2, OP_DESC, WD, "MOVAW",   0, -1, -1,  1},
     {0x05, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x06,  2, OP_COPR, NA, "SPOPRT", -1, -1, -1, -1},
-    {0x07,  3, OP_COPR, NA, "SPOPT2", -1, -1, -1, -1},
+    {0x06,  2, OP_COPR, WD, "SPOPRT", -1, -1, -1, -1},
+    {0x07,  3, OP_COPR, WD, "SPOPT2", -1, -1, -1, -1},
     {0x08,  0, OP_NONE, NA, "RET",    -1, -1, -1, -1},
     {0x09, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x0a, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
@@ -197,11 +197,11 @@ mnemonic ops[256] = {
     {0x10,  1, OP_DESC, WD, "SAVE",    0, -1, -1, -1},
     {0x11, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x12, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x13,  2, OP_COPR, NA, "SPOPWD", -1, -1, -1, -1},
+    {0x13,  2, OP_COPR, WD, "SPOPWD", -1, -1, -1, -1},
     {0x14,  1, OP_BYTE, NA, "EXTOP",  -1, -1, -1, -1},
     {0x15, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x16, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x17,  2, OP_COPR, NA, "SPOPWT", -1, -1, -1, -1},
+    {0x17,  2, OP_COPR, WD, "SPOPWT", -1, -1, -1, -1},
     {0x18,  1, OP_DESC, WD, "RESTORE", 0, -1, -1, -1},
     {0x19, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x1a, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
@@ -212,8 +212,8 @@ mnemonic ops[256] = {
     {0x1f,  1, OP_DESC, NA, "SWAPBI", -1, -1, -1, -1},
     {0x20,  1, OP_DESC, WD, "POPW",   -1, -1, -1,  0},
     {0x21, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x22,  2, OP_COPR, NA, "SPOPRS", -1, -1, -1, -1},
-    {0x23,  3, OP_COPR, NA, "SPOPS2", -1, -1, -1, -1},
+    {0x22,  2, OP_COPR, WD, "SPOPRS", -1, -1, -1, -1},
+    {0x23,  3, OP_COPR, WD, "SPOPS2", -1, -1, -1, -1},
     {0x24,  1, OP_DESC, NA, "JMP",    -1, -1, -1,  0},
     {0x25, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x26, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
@@ -228,8 +228,8 @@ mnemonic ops[256] = {
     {0x2f, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x30, -1, OP_NONE, NA, "???",    -1, -1, -1, -1}, /* Two-byte instructions */
     {0x31, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
-    {0x32,  1, OP_COPR, NA, "SPOP",   -1, -1, -1, -1},
-    {0x33,  2, OP_COPR, NA, "SPOPWS", -1, -1, -1, -1},
+    {0x32,  1, OP_COPR, WD, "SPOP",   -1, -1, -1, -1},
+    {0x33,  2, OP_COPR, WD, "SPOPWS", -1, -1, -1, -1},
     {0x34,  1, OP_DESC, WD, "JSB",    -1, -1, -1,  0},
     {0x35, -1, OP_NONE, NA, "???",    -1, -1, -1, -1},
     {0x36,  1, OP_HALF, NA, "BSBH",   -1, -1, -1,  0},
@@ -1088,16 +1088,22 @@ uint8 decode_instruction(instr *instr)
         break;
     case OP_BYTE:
         instr->operands[0].embedded.b = read_b(pa + offset++);
+        instr->operands[0].mode = 6;
+        instr->operands[0].reg = 15;
         break;
     case OP_HALF:
         instr->operands[0].embedded.h = read_b(pa + offset++);
         instr->operands[0].embedded.h |= read_b(pa + offset++) << 8;
+        instr->operands[0].mode = 5;
+        instr->operands[0].reg = 15;
         break;
     case OP_COPR:
         instr->operands[0].embedded.w = read_b(pa + offset++);
         instr->operands[0].embedded.w |= read_b(pa + offset++) << 8;
         instr->operands[0].embedded.w |= read_b(pa + offset++) << 16;
         instr->operands[0].embedded.w |= read_b(pa + offset++) << 24;
+        instr->operands[0].mode = 4;
+        instr->operands[0].reg = 15;
 
         /* Decode subsequent operands */
         for (i = 1; i < mn->op_count; i++) {
@@ -1115,56 +1121,26 @@ uint8 decode_instruction(instr *instr)
     return offset;
 }
 
-void cpu_context_switch(uint32 new_pcbp)
+void cpu_context_switch_2(uint32 new_pcbp)
 {
-    uint32 cur_pcbp, new_pc, new_psw, new_sp;
+    uint32 new_pc, new_psw, new_sp;
 
-    cur_pcbp = R[NUM_PCBP];
     new_psw = read_w(new_pcbp);
     new_pc = read_w(new_pcbp + 4);
     new_sp = read_w(new_pcbp + 8);
 
     sim_debug(EXECUTE_MSG, &cpu_dev,
-              "[Context Switch] New PCBP=%08x, New PSW=%08x, New PC=%08x, New SP=%08x\n",
-              new_pcbp, new_psw, new_pc, new_sp);
+              "[Context Switch Two] New PC=%08x; Old SP=%08x, New SP=%08x; Old PCBP=%08x, New PCBP=%08x\n",
+              new_pc, R[NUM_SP], new_sp, R[NUM_PCBP], new_pcbp);
 
-    /* Call XSWITCH_ONE() microroutine to save process context */
-
-    /* Copy the 'R' flag from the new PSW to the old PSW */
-    R[NUM_PSW] &= ~PSW_R_MASK;
-    R[NUM_PSW] |= (new_psw & PSW_R_MASK);
-
-    /* Save the PSW, PC, and SP in the current PCB */
-    write_w(cur_pcbp, R[NUM_PSW]);
-    write_w(cur_pcbp + 4, cpu_next_pc());
-    write_w(cur_pcbp + 8, R[NUM_SP]);
-
-    /* If R is set, save current R0-R8/FP/AP in PCB */
-    if (R[NUM_PSW] & PSW_R_MASK) {
-        write_w(cur_pcbp + 20, R[NUM_AP]);
-        write_w(cur_pcbp + 24, R[NUM_FP]);
-        write_w(cur_pcbp + 28, R[0]);
-        write_w(cur_pcbp + 32, R[1]);
-        write_w(cur_pcbp + 36, R[2]);
-        write_w(cur_pcbp + 40, R[3]);
-        write_w(cur_pcbp + 44, R[4]);
-        write_w(cur_pcbp + 48, R[5]);
-        write_w(cur_pcbp + 52, R[6]);
-        write_w(cur_pcbp + 56, R[7]);
-        write_w(cur_pcbp + 60, R[8]);
-    }
 
     /* Call XSWITCH_TWO() microroutine to load the new PCBP */
     R[NUM_PCBP] = new_pcbp;
     R[NUM_PSW] = new_psw;
-    R[NUM_PSW] &= ~PSW_TM_MASK;
     R[NUM_PC] = new_pc;
     R[NUM_SP] = new_sp;
 
-    /* If I bit is set, increment PCBP past initial context area */
     if (R[NUM_PSW] & PSW_I_MASK) {
-        sim_debug(EXECUTE_MSG, &cpu_dev,
-                  "PSW<I> is set, incrementing PCBP by 12\n");
         R[NUM_PSW] &= ~PSW_I_MASK;
         R[NUM_PCBP] += 12;
     }
@@ -1210,6 +1186,50 @@ void cpu_context_switch(uint32 new_pcbp)
 
         R[0] = R[0] + 4;
     }
+
+}
+
+void cpu_context_switch_1(uint32 new_pcbp)
+{
+    uint32 cur_pcbp, new_psw;
+
+    cur_pcbp = R[NUM_PCBP];
+    new_psw = read_w(new_pcbp);
+
+    sim_debug(EXECUTE_MSG, &cpu_dev,
+              "[Context Switch One] New PCBP=%08x, New PSW=%08x\n",
+              new_pcbp, new_psw);
+
+    /* Call XSWITCH_ONE() microroutine to save process context */
+
+    /* Copy the 'R' flag from the new PSW to the old PSW */
+    R[NUM_PSW] &= ~PSW_R_MASK;
+    R[NUM_PSW] |= (new_psw & PSW_R_MASK);
+
+    /* Save the PSW, PC, and SP in the current PCB */
+    write_w(cur_pcbp, R[NUM_PSW]);
+    write_w(cur_pcbp + 4, cpu_next_pc());
+    write_w(cur_pcbp + 8, R[NUM_SP]);
+
+    /* If R is set, save current R0-R8/FP/AP in PCB */
+    if (R[NUM_PSW] & PSW_R_MASK) {
+        sim_debug(EXECUTE_MSG, &cpu_dev,
+                  "PSW<R> IS SET, SAVING REGISTERS (addr=%08x, fp=%08x).\n",
+                  R[NUM_PCBP] + 24, R[NUM_FP]);
+        write_w(cur_pcbp + 20, R[NUM_AP]);
+        write_w(cur_pcbp + 24, R[NUM_FP]);
+        write_w(cur_pcbp + 28, R[0]);
+        write_w(cur_pcbp + 32, R[1]);
+        write_w(cur_pcbp + 36, R[2]);
+        write_w(cur_pcbp + 40, R[3]);
+        write_w(cur_pcbp + 44, R[4]);
+        write_w(cur_pcbp + 48, R[5]);
+        write_w(cur_pcbp + 52, R[6]);
+        write_w(cur_pcbp + 56, R[7]);
+        write_w(cur_pcbp + 60, R[8]);
+    }
+
+    cpu_context_switch_2(new_pcbp);
 }
 
 t_bool cpu_handle_irq(uint16 ipl, uint8 id, t_bool nmi)
@@ -1258,7 +1278,7 @@ t_bool cpu_handle_irq(uint16 ipl, uint8 id, t_bool nmi)
               R[NUM_PCBP], new_pcbp);
 
     /* Context switch */
-    cpu_context_switch(new_pcbp);
+    cpu_context_switch_1(new_pcbp);
 
     return TRUE;
 }
@@ -1603,7 +1623,7 @@ t_stat sim_instr(void)
 
             irq_push_word(R[NUM_PCBP]);
 
-            cpu_context_switch(tmp_a);
+            cpu_context_switch_1(tmp_a);
 
             sim_debug(EXECUTE_MSG, &cpu_dev,
                       ">>> CALLPS: R[0] = %08x. After call, PC=%08x\n",
@@ -1958,6 +1978,9 @@ t_stat sim_instr(void)
             continue;
         case RETG:
             tmp_a = cpu_pop_word(); /* PSW */
+            sim_debug(EXECUTE_MSG, &cpu_dev,
+                      "[%08x] RETG: Popped old PSW %08x off the stack\n",
+                      R[NUM_PC], tmp_a);
             tmp_b = cpu_pop_word(); /* PC */
 
             /* TODO: Illegal level change if old PSW<CM> != new
@@ -1978,9 +2001,12 @@ t_stat sim_instr(void)
             tmp_a |= (R[NUM_PSW] & PSW_QIE_MASK);
             tmp_a |= (R[NUM_PSW] & PSW_CD_MASK);
             tmp_a |= (R[NUM_PSW] & PSW_R_MASK);
-            tmp_a |= (R[NUM_PSW] & PSW_ISC_MASK);
-            tmp_a |= (R[NUM_PSW] & PSW_TM_MASK);
-            tmp_a |= (R[NUM_PSW] & PSW_ET_MASK);
+            tmp_a |= 7 << PSW_ISC;
+            tmp_a |= 3 << PSW_ET;
+
+            sim_debug(EXECUTE_MSG, &cpu_dev,
+                      "[%08x] RETG: PSW Before: %08x; PSW After: %08x\n",
+                      R[NUM_PC], R[NUM_PSW], tmp_a);
 
             R[NUM_PSW] = tmp_a;
             R[NUM_PC] = tmp_b;
@@ -1994,20 +2020,42 @@ t_stat sim_instr(void)
 
             /* Restore process state */
             tmp_a = irq_pop_word();
+            tmp_b = read_w(tmp_a); /* New PSW */
 
             sim_debug(EXECUTE_MSG, &cpu_dev,
-                      ">>> RETPS: tmp_a = %08x.\n",
+                      ">>> RETPS: New PCBP = %08x.\n",
                       tmp_a);
 
+            /* Copy the 'R' flag from the new PSW to the old PSW */
+            R[NUM_PSW] &= ~PSW_R_MASK;
+            R[NUM_PSW] |= (tmp_b & PSW_R_MASK);
+
+            /* Restore registers if R bit is set */
+            if (R[NUM_PSW] & PSW_R_MASK) {
+                R[NUM_AP] = read_w(tmp_a + 20);
+                R[NUM_FP] = read_w(tmp_a + 24);
+                sim_debug(EXECUTE_MSG, &cpu_dev,
+                          "PSW<R> IS SET, RESTORING REGISTERS (addr=%08x, fp=%08x).\n",
+                          tmp_a + 24, R[NUM_FP]);
+                R[0] = read_w(tmp_a + 28);
+                R[1] = read_w(tmp_a + 32);
+                R[2] = read_w(tmp_a + 36);
+                R[3] = read_w(tmp_a + 40);
+                R[4] = read_w(tmp_a + 44);
+                R[5] = read_w(tmp_a + 48);
+                R[6] = read_w(tmp_a + 52);
+                R[7] = read_w(tmp_a + 56);
+                R[8] = read_w(tmp_a + 60);
+            }
+
             /* tmp_a now holds the new PCBP */
-            cpu_context_switch(tmp_a);
+            cpu_context_switch_2(tmp_a);
 
             continue;
         case SPOP:
-        case SPOPRS:
         case SPOPRD:
-        case SPOPRT:
-            /* Co-processor instruction: Unimplemented */
+            /* Not implemented */
+            cpu_set_exception(NORMAL_EXCEPTION, EXTERNAL_MEMORY_FAULT);
             break;
         case SUBW2:
         case SUBH2:
@@ -2205,58 +2253,69 @@ static uint32 cpu_effective_address(operand * op)
 {
     /* Register Deferred */
     if (op->mode == 5 && op->reg != 11) {
-        return R[op->reg];
+        op->data = R[op->reg];
+        return op->data;
     }
 
     /* Absolute */
     if (op->mode == 7 && op->reg == 15) {
-        return op->embedded.w;
+        op->data = op->embedded.w;
+        return op->data;
     }
 
     /* Absolute Deferred */
     if (op->mode == 14 && op->reg == 15) {
         /* May cause exception */
-        return read_w(op->embedded.w);
+        op->data = read_w(op->embedded.w);
+        return op->data;
     }
 
     /* FP Short Offset */
     if (op->mode == 6 && op->reg != 15) {
-        return R[NUM_FP] + (int8)op->embedded.b;
+        op->data = R[NUM_FP] + (int8)op->embedded.b;
+        return op->data;
     }
 
     /* AP Short Offset */
     if (op->mode == 7 && op->reg != 15) {
-        return R[NUM_AP] + (int8)op->embedded.b;
+        op->data = R[NUM_AP] + (int8)op->embedded.b;
+        return op->data;
     }
 
     /* Word Displacement */
     if (op->mode == 8) {
-        return R[op->reg] + (int32)op->embedded.w;
+        op->data = R[op->reg] + (int32)op->embedded.w;
+        return op->data;
     }
 
     /* Word Displacement Deferred */
     if (op->mode == 9) {
-        return read_w(R[op->reg] + (int32)op->embedded.w);
+        op->data = read_w(R[op->reg] + (int32)op->embedded.w);
+        return op->data;
     }
 
     /* Halfword Displacement */
     if (op->mode == 10) {
-        return R[op->reg] + (int16)op->embedded.h;
+        op->data = R[op->reg] + (int16)op->embedded.h;
+        return op->data;
     }
 
     /* Halfword Displacement Deferred */
     if (op->mode == 11) {
-        return read_w(R[op->reg] + (int16)op->embedded.h);
+        op->data = read_w(R[op->reg] + (int16)op->embedded.h);
+        return op->data;
     }
 
     /* Byte Displacement */
     if (op->mode == 12) {
-        return R[op->reg] + (int8)op->embedded.b;
+        op->data = R[op->reg] + (int8)op->embedded.b;
+        return op->data;
     }
 
     /* Byte Displacement Deferred */
     if (op->mode == 13) {
-        return read_w(R[op->reg] + (int8)op->embedded.b);
+        op->data = read_w(R[op->reg] + (int8)op->embedded.b);
+        return op->data;
     }
 
     assert(0);
@@ -2373,7 +2432,7 @@ static int32 cpu_read_op(operand * op)
     switch (op_type(op)) {
     case WD: /* Signed Word */
     case UW: /* Unsigned Word */
-        data = read_w(eff);
+        data = read_w_u(eff);
         op->data = data;
         return data;
     case HW: /* Signed Halfword */
