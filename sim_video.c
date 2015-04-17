@@ -27,8 +27,6 @@
    11-Jun-2013  MB      First version
 */
 
-#if defined(USE_SIM_VIDEO)
-
 #include "sim_video.h"
 
 t_bool vid_active = FALSE;
@@ -39,14 +37,16 @@ int32 vid_cursor_y;
 t_bool vid_mouse_b1 = FALSE;
 t_bool vid_mouse_b2 = FALSE;
 t_bool vid_mouse_b3 = FALSE;
-char vid_release_key[64] = "Ctrl-Right-Shift";
 
 t_stat vid_show (FILE* st, DEVICE *dptr,  UNIT* uptr, int32 val, char* desc)
 {
 return vid_show_video (st, uptr, val, desc);
 }
 
-#if defined(HAVE_LIBSDL)
+#if defined(USE_SIM_VIDEO) && defined(HAVE_LIBSDL)
+
+char vid_release_key[64] = "Ctrl-Right-Shift";
+
 #include <SDL.h>
 #include <SDL_thread.h>
 
@@ -1149,30 +1149,30 @@ int vid_video_events (void)
 SDL_Event event;
 #if SDL_MAJOR_VERSION == 1
 static char *eventtypes[] = {
-    "NOEVENT",			/**< Unused (do not remove) */
-    "ACTIVEEVENT",		/**< Application loses/gains visibility */
-    "KEYDOWN",			/**< Keys pressed */
-    "KEYUP",			/**< Keys released */
-    "MOUSEMOTION",		/**< Mouse moved */
-    "MOUSEBUTTONDOWN",		/**< Mouse button pressed */
-    "MOUSEBUTTONUP",		/**< Mouse button released */
-    "JOYAXISMOTION",		/**< Joystick axis motion */
-    "JOYBALLMOTION",		/**< Joystick trackball motion */
-    "JOYHATMOTION",		/**< Joystick hat position change */
-    "JOYBUTTONDOWN",		/**< Joystick button pressed */
-    "JOYBUTTONUP",		/**< Joystick button released */
-    "QUIT",			/**< User-requested quit */
-    "SYSWMEVENT",		/**< System specific event */
-    "EVENT_RESERVEDA",		/**< Reserved for future use.. */
-    "EVENT_RESERVEDB",		/**< Reserved for future use.. */
-    "VIDEORESIZE",		/**< User resized video mode */
-    "VIDEOEXPOSE",		/**< Screen needs to be redrawn */
-    "EVENT_RESERVED2",		/**< Reserved for future use.. */
-    "EVENT_RESERVED3",		/**< Reserved for future use.. */
-    "EVENT_RESERVED4",		/**< Reserved for future use.. */
-    "EVENT_RESERVED5",		/**< Reserved for future use.. */
-    "EVENT_RESERVED6",		/**< Reserved for future use.. */
-    "EVENT_RESERVED7",		/**< Reserved for future use.. */
+    "NOEVENT",              /**< Unused (do not remove) */
+    "ACTIVEEVENT",          /**< Application loses/gains visibility */
+    "KEYDOWN",              /**< Keys pressed */
+    "KEYUP",                /**< Keys released */
+    "MOUSEMOTION",          /**< Mouse moved */
+    "MOUSEBUTTONDOWN",      /**< Mouse button pressed */
+    "MOUSEBUTTONUP",        /**< Mouse button released */
+    "JOYAXISMOTION",        /**< Joystick axis motion */
+    "JOYBALLMOTION",        /**< Joystick trackball motion */
+    "JOYHATMOTION",         /**< Joystick hat position change */
+    "JOYBUTTONDOWN",        /**< Joystick button pressed */
+    "JOYBUTTONUP",          /**< Joystick button released */
+    "QUIT",                 /**< User-requested quit */
+    "SYSWMEVENT",           /**< System specific event */
+    "EVENT_RESERVEDA",      /**< Reserved for future use.. */
+    "EVENT_RESERVEDB",      /**< Reserved for future use.. */
+    "VIDEORESIZE",          /**< User resized video mode */
+    "VIDEOEXPOSE",          /**< Screen needs to be redrawn */
+    "EVENT_RESERVED2",      /**< Reserved for future use.. */
+    "EVENT_RESERVED3",      /**< Reserved for future use.. */
+    "EVENT_RESERVED4",      /**< Reserved for future use.. */
+    "EVENT_RESERVED5",      /**< Reserved for future use.. */
+    "EVENT_RESERVED6",      /**< Reserved for future use.. */
+    "EVENT_RESERVED7",      /**< Reserved for future use.. */
     "USEREVENT",            /** Events SDL_USEREVENT(24) through SDL_MAXEVENTS-1(31) are for your use */
     "",
     "",
@@ -1818,8 +1818,7 @@ while (_show_stat == -1)
 return _show_stat;
 }
 
-#else /* !defined(HAVE_LIBSDL) */
-
+#else /* !(defined(USE_SIM_VIDEO) && defined(HAVE_LIBSDL)) */
 /* Non-implemented versions */
 
 uint32 vid_mono_palette[2];                             /* Monochrome Color Map */
@@ -1885,9 +1884,4 @@ t_stat vid_show_video (FILE* st, UNIT* uptr, int32 val, void* desc)
 fprintf (st, "video support unavailable");
 return SCPE_OK;
 }
-
-#endif /* defined(HAVE_LIBSDL) */
-
-#else /* !defined(USE_SIM_VIDEO) */
-static const char *dummy_declaration = "Something to compile";
 #endif /* defined(USE_SIM_VIDEO) */

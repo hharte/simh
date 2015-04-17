@@ -194,12 +194,20 @@ static DEBTAB sim_con_debug[] = {
   {0}
 };
 
+static REG sim_con_reg[] = {
+    { ORDATAD (WRU,   sim_int_char,  8, "interrupt character") },
+    { ORDATAD (BRK,   sim_brk_char,  8, "break character") },
+    { ORDATAD (DEL,   sim_del_char,  8, "delete character ") },
+    { ORDATAD (PCHAR, sim_tt_pchar, 32, "printable character mask") },
+  { 0 },
+};
+
 static MTAB sim_con_mod[] = {
   { 0 },
 };
 
 DEVICE sim_con_telnet = {
-    "CON-TEL", &sim_con_unit, NULL, sim_con_mod, 
+    "CON-TEL", &sim_con_unit, sim_con_reg, sim_con_mod, 
     1, 0, 0, 0, 0, 0, 
     NULL, NULL, sim_con_reset, NULL, NULL, NULL, 
     NULL, DEV_DEBUG, 0, sim_con_debug};
@@ -210,16 +218,29 @@ TMXR sim_con_tmxr = { 1, 0, 0, &sim_con_ldsc, NULL, &sim_con_telnet };/* console
 SEND sim_con_send = {SEND_DEFAULT_DELAY, &sim_con_telnet, DBG_SND};
 EXPECT sim_con_expect = {&sim_con_telnet, DBG_EXP};
 
+static t_bool sim_con_console_port = TRUE;
+
+/* Enable automatic WRU console polling */
+
+t_stat sim_set_noconsole_port (void)
+{
+sim_con_console_port = FALSE;
+return SCPE_OK;
+}
+
 /* Unit service for console connection polling */
 
 static t_stat sim_con_poll_svc (UNIT *uptr)
 {
-if ((sim_con_tmxr.master == 0) &&                       /* not Telnet and not serial? */
-    (sim_con_ldsc.serport == 0))
+if ((sim_con_tmxr.master == 0) &&                       /* not Telnet and not serial and not WRU polling? */
+    (sim_con_ldsc.serport == 0) &&
+    (sim_con_console_port))
     return SCPE_OK;                                     /* done */
 if (tmxr_poll_conn (&sim_con_tmxr) >= 0)                /* poll connect */
     sim_con_ldsc.rcve = 1;                              /* rcv enabled */
 sim_activate_after(uptr, 1000000);                      /* check again in 1 second */
+if (!sim_con_console_port)                              /* WRU poll needed */
+    sim_poll_kbd();                                     /* sets global stop_cpu when WRU received */
 if (sim_con_ldsc.conn)
     tmxr_send_buffered_data (&sim_con_ldsc);            /* try to flush any buffered data */
 return SCPE_OK;
@@ -380,7 +401,7 @@ DEVICE sim_remote_console = {
     "REM-CON", sim_rem_con_unit, NULL, sim_rem_con_mod, 
     2, 0, 0, 0, 0, 0, 
     NULL, NULL, sim_rem_con_reset, NULL, NULL, NULL, 
-    NULL, DEV_DEBUG, 0, sim_rem_con_debug};
+    NULL, DEV_DEBUG | DEV_NOSAVE, 0, sim_rem_con_debug};
 #define MAX_REMOTE_SESSIONS 40          /* Arbitrary Session Limit */
 static int32 *sim_rem_buf_size = NULL;
 static int32 *sim_rem_buf_ptr = NULL;
@@ -390,7 +411,7 @@ static TMXR sim_rem_con_tmxr = { 0, 0, 0, NULL, NULL, &sim_remote_console };/* r
 static uint32 sim_rem_read_timeout = 30;    /* seconds before automatic continue */
 static uint32 *sim_rem_read_timeouts = NULL;/* per line read timeout (default from sim_rem_read_timeout) */
 static int32 sim_rem_active_number = -1;    /* -1 - not active, >= 0 is index of active console */
-static int32 sim_rem_cmd_active_line = -1;  /* step in progress on line # */
+int32 sim_rem_cmd_active_line = -1;         /* step in progress on line # */
 static CTAB *sim_rem_active_command = NULL; /* active command */
 static char *sim_rem_command_buf;           /* active command buffer */
 static t_bool sim_log_temp = FALSE;         /* temporary log file active */
@@ -667,6 +688,7 @@ sim_ttcmd ();                                   /* restore console */
 stat = sim_rem_active_command->action (sim_rem_active_command->arg, cptr);/* execute command */
 if (stat != SCPE_OK)
     stat = _sim_rem_message (gbuf, stat);       /* display results */
+sim_last_cmd_stat = SCPE_BARE_STATUS(stat);
 sim_ttrun ();                                   /* set console mode */
 sim_cancel (&sim_rem_con_unit[1]);              /* force immediate activation of sim_rem_con_data_svc */
 sim_activate (&sim_rem_con_unit[1], -1);
@@ -1205,12 +1227,7 @@ else {
 if (sim_rem_master_mode) {
     t_stat stat_nomessage;
 
-    if ((!sim_con_ldsc.serport) &&
-        (sim_con_tmxr.master == 0)) {
-        sim_printf ("Console port must be Telnet or Serial with Master Remote Console\r\n");
-        return SCPE_IERR|SCPE_NOMESSAGE;
-        }
-    sim_printf ("Command input now processed on Master Remote Console Session\n");
+    sim_printf ("Command input starting on Master Remote Console Session\n");
     stat = sim_run_boot_prep ();
     sim_rem_master_was_enabled = TRUE;
     while (sim_rem_master_mode) {
@@ -1787,11 +1804,6 @@ t_stat sim_check_console (int32 sec)
 int32 c, trys = 0;
 
 if (sim_rem_master_mode) {
-    if ((!sim_con_ldsc.serport) &&
-        (sim_con_tmxr.master == 0)) {
-        sim_printf ("Console port must be Telnet or Serial with Master Remote Console\r\n");
-        return SCPE_IERR|SCPE_NOMESSAGE;
-        }
     for (;trys < sec; ++trys) {
         sim_rem_con_poll_svc (&sim_rem_con_unit[0]);
         if (sim_rem_con_tmxr.ldsc[0].conn)
@@ -1803,6 +1815,19 @@ if (sim_rem_master_mode) {
                 fflush (sim_log);
             }
         sim_os_sleep (1);                               /* wait 1 second */
+        }
+    if ((sim_rem_con_tmxr.ldsc[0].conn) &&
+        (!sim_con_ldsc.serport) &&
+        (sim_con_tmxr.master == 0) &&
+        (sim_con_console_port)) {
+        tmxr_linemsgf (&sim_rem_con_tmxr.ldsc[0], "\r\nConsole port must be Telnet or Serial with Master Remote Console\r\n");
+        tmxr_linemsgf (&sim_rem_con_tmxr.ldsc[0], "Goodbye\r\n");
+        while (tmxr_send_buffered_data (&sim_rem_con_tmxr.ldsc[0]))
+            sim_os_ms_sleep (100);
+        sim_os_ms_sleep (100);
+        tmxr_reset_ln (&sim_rem_con_tmxr.ldsc[0]);
+        sim_printf ("Console port must be Telnet or Serial with Master Remote Console\r\n");
+        return SCPE_EXIT;
         }
     }
 if (trys == sec) {

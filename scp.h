@@ -186,6 +186,7 @@ const char *sim_error_text (t_stat stat);
 t_stat sim_string_to_stat (char *cptr, t_stat *cond);
 t_stat sim_cancel_step (void);
 void sim_printf (const char* fmt, ...);
+void sim_perror (const char* msg);
 t_stat sim_messagef (t_stat stat, const char* fmt, ...);
 void sim_data_trace(DEVICE *dptr, UNIT *uptr, const uint8 *data, const char *position, size_t len, const char *txt, uint32 reason);
 void sim_debug_bits (uint32 dbits, DEVICE* dptr, BITFIELD* bitdefs,
@@ -220,6 +221,7 @@ extern int32 sim_interval;
 extern int32 sim_switches;
 extern int32 sim_quiet;
 extern int32 sim_step;
+extern t_stat sim_last_cmd_stat;                        /* Command Status */
 extern FILE *sim_log;                                   /* log file */
 extern FILEREF *sim_log_ref;                            /* log file file reference */
 extern FILE *sim_deb;                                   /* debug file */
@@ -229,6 +231,7 @@ extern struct timespec sim_deb_basetime;                /* debug base time for r
 extern UNIT *sim_clock_queue;
 extern int32 sim_is_running;
 extern char *sim_prompt;                                /* prompt string */
+extern const char *sim_savename;                        /* Simulator Name used in Save/Restore files */
 extern t_value *sim_eval;
 extern volatile int32 stop_cpu;
 extern uint32 sim_brk_types;                            /* breakpoint info */
@@ -265,6 +268,5 @@ extern t_addr (*sim_vm_parse_addr) (DEVICE *dptr, char *cptr, char **tptr);
 extern t_bool (*sim_vm_fprint_stopped) (FILE *st, t_stat reason);
 extern t_value (*sim_vm_pc_value) (void);
 extern t_bool (*sim_vm_is_subroutine_call) (t_addr **ret_addrs);
-
 
 #endif

@@ -24,6 +24,12 @@
    in this Software without prior written authorization from Mark Pizzolato.
 
    15-Jan-15    MP      Initial implementation
+   01-Apr-15    MP      Added register indirect, mem_examine and mem_deposit
+   03-Apr-15    MP      Added logic to pass simulator startup messages in
+                        panel error text if the connection to the simulator
+                        shuts down while it is starting.
+   04-Apr-15    MP      Added mount and dismount routines to connect and 
+                        disconnect removable media
 
    This module defines interface between a front panel application and a simh
    simulator.  Facilities provide ways to gather information from and to 
@@ -49,7 +55,7 @@ extern "C" {
 
 #include <stdlib.h>
 
-#if !defined(__VAX)         /* Supported platform */
+#if !defined(__VAX)         /* Unsupported platform */
 
 #define SIM_FRONTPANEL_VERSION   1
 
@@ -125,6 +131,8 @@ sim_panel_destroy (PANEL *panel);
    access to are described by the application by calling: 
    
    sim_panel_add_register
+and
+   sim_panel_add_register_indirect
 
         name         the name the simulator knows this register by
         device_name  the device this register is part of.  Defaults to
@@ -143,6 +151,12 @@ sim_panel_add_register (PANEL *panel,
                         size_t size,
                         void *addr);
 
+int
+sim_panel_add_register_indirect (PANEL *panel,
+                                 const char *name,
+                                 const char *device_name,
+                                 size_t size,
+                                 void *addr);
 /**
 
     A panel application has a choice of two different methods of getting 
@@ -157,10 +171,14 @@ sim_panel_add_register (PANEL *panel,
            the current register state at the desired rate.
 
 
-   Note 1: The buffers described in a panel's register set will be dynamically
-           revised as soon as data is available from the simulator.  The 
-           callback routine merely serves as a notification that a complete 
-           register set has arrived.
+   Note 1: The buffers described in a panel's register set will be 
+           dynamically revised as soon as data is available from the 
+           simulator.  The callback routine merely serves as a notification 
+           that a complete register set has arrived.
+   Note 2: The callback routine should, in general, not run for a long time
+           or frontpanel interactions with the simulator may be disrupted.  
+           Setting a flag, signaling an event or posting a message are 
+           reasonable activities to perform in a callback routine.
 
  */
 int
@@ -205,10 +223,103 @@ int
 sim_panel_exec_step (PANEL *panel);
 
 /**
+
+    When a front panel application needs to change or access
+    memory or a register one of the following routines should 
+    be called:  
+    
+    sim_panel_gen_examine        - Examine register or memory
+    sim_panel_gen_deposit        - Deposit to register or memory
+    sim_panel_mem_examine        - Examine memory location
+    sim_panel_mem_deposit        - Deposit to memory location
+    sim_panel_set_register_value - Deposit to a register or memory 
+                                   location
+
+ */
+
+
+/**
+
+   sim_panel_gen_examine
+
+        name_or_addr the name the simulator knows this register by
+        size         the size (in local storage) of the buffer which will
+                     receive the data returned when examining the simulator
+        value        a pointer to the buffer which will be loaded with the
+                     data returned when examining the simulator
+ */
+
+int
+sim_panel_gen_examine (PANEL *panel, 
+                       const char *name_or_addr,
+                       size_t size,
+                       void *value);
+/**
+
+   sim_panel_gen_deposit
+
+        name_or_addr the name the simulator knows this register by
+        size         the size (in local storage) of the buffer which
+                     contains the data to be deposited into the simulator
+        value        a pointer to the buffer which contains the data to 
+                     be deposited into the simulator
+ */
+
+int
+sim_panel_gen_deposit (PANEL *panel, 
+                       const char *name_or_addr,
+                       size_t size,
+                       const void *value);
+
+/**
+
+   sim_panel_mem_examine
+
+        addr_size    the size (in local storage) of the buffer which 
+                     contains the memory address of the data to be examined
+                     in the simulator
+        addr         a pointer to the buffer containing the memory address
+                     of the data to be examined in the simulator
+        value_size   the size (in local storage) of the buffer which will
+                     receive the data returned when examining the simulator
+        value        a pointer to the buffer which will be loaded with the
+                     data returned when examining the simulator
+ */
+
+int
+sim_panel_mem_examine (PANEL *panel, 
+                       size_t addr_size,
+                       const void *addr,
+                       size_t value_size,
+                       void *value);
+
+/**
+
+   sim_panel_mem_deposit
+
+        addr_size    the size (in local storage) of the buffer which 
+                     contains the memory address of the data to be deposited
+                     into the simulator
+        addr         a pointer to the buffer containing the memory address
+                     of the data to be deposited into the simulator
+        value_size   the size (in local storage) of the buffer which will
+                     contains the data to be deposited into the simulator
+        value        a pointer to the buffer which contains the data to be
+                     deposited into the simulator
+ */
+
+int
+sim_panel_mem_deposit (PANEL *panel, 
+                       size_t addr_size,
+                       const void *addr,
+                       size_t value_size,
+                       const void *value);
+
+/**
    sim_panel_set_register_value
 
-        name        the name of a simulator register which is to receive 
-                    a new value
+        name        the name of a simulator register or a memory address
+                    which is to receive a new value
         value       the new value in character string form.  The string 
                     must be in the native/natural radix that the simulator 
                     uses when referencing that register
@@ -218,6 +329,42 @@ int
 sim_panel_set_register_value (PANEL *panel,
                               const char *name,
                               const char *value);
+
+/**
+
+    When a front panel application may needs to change the media
+    in a simulated removable media device one of the following 
+    routines should be called:
+
+    sim_panel_mount    - mounts the indicated media file on a device
+    sim_panel_dismount - dismounts the currently mounted media file 
+                         from a device
+
+ */
+
+/**
+   sim_panel_mount
+
+        device      the name of a simulator device/unit
+        switches    any switches appropriate for the desire attach
+        path        the path on the local system to be attached
+
+ */
+int
+sim_panel_mount (PANEL *panel,
+                 const char *device,
+                 const char *switches,
+                 const char *path);
+
+/**
+   sim_panel_dismount
+
+        device      the name of a simulator device/unit
+
+ */
+int
+sim_panel_dismount (PANEL *panel,
+                    const char *device);
 
 
 typedef enum {
@@ -235,6 +382,8 @@ sim_panel_get_state (PANEL *panel);
 
     All APIs routines which return an int return 0 for 
     success and -1 for an error.  
+
+    An API which returns an error (-1), will not change the panel state.
     
     sim_panel_get_error     - the details of the most recent error
     sim_panel_clear_error   - clears the error buffer

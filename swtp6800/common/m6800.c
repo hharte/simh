@@ -1,6 +1,6 @@
 /* m6800.c: SWTP 6800 CPU simulator
 
-   Copyright (c) 2005-2011, William Beech
+   Copyright (c) 2005-2012, William Beech
 
    Permission is hereby granted, free of charge, to any person obtaining a
    copy of this software and associated documentation files (the "Software"),
@@ -1918,8 +1918,8 @@ t_stat m6800_reset (DEVICE *dptr)
 
 
 /* This is the dumper/loader. This command uses the -h to signify a
-	hex dump/load vice a binary one.  If no address is given to load, it 
-	takes the address from the hex record or the current PC for binary.
+    hex dump/load vice a binary one.  If no address is given to load, it 
+    takes the address from the hex record or the current PC for binary.
 */
 
 t_stat sim_load (FILE *fileref, char *cptr, char *fnam, int flag)

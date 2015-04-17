@@ -106,6 +106,7 @@ const char *sim_logfile_name (FILE *st, FILEREF *ref);
 SEND *sim_cons_get_send (void);
 EXPECT *sim_cons_get_expect (void);
 t_stat sim_show_cons_send_input (FILE *st, DEVICE *dptr, UNIT *uptr, int32 flag, char *cptr);
+t_stat sim_set_noconsole_port (void);
 t_stat sim_poll_kbd (void);
 t_stat sim_putchar (int32 c);
 t_stat sim_putchar_s (int32 c);
@@ -118,6 +119,8 @@ int32 sim_tt_inpcvt (int32 c, uint32 mode);
 int32 sim_tt_outcvt (int32 c, uint32 mode);
 t_stat sim_tt_settabs (UNIT *uptr, int32 val, char *cptr, void *desc);
 t_stat sim_tt_showtabs (FILE *st, UNIT *uptr, int32 val, void *desc);
+
+extern int32 sim_rem_cmd_active_line;                       /* command in progress on line # */
 
 extern int32 sim_int_char;                                  /* interrupt character */
 extern int32 sim_brk_char;                                  /* break character */
