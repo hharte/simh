@@ -293,6 +293,7 @@ static int32 warnUnassignedPort     = 0;        /* display a warning message if 
 /* PTR/PTP port assignments (read only)                                                                         */
 static int32 ptpptrStatusPort       = 0x12;     /* default status port for PTP/PTR device                       */
 static int32 ptpptrDataPort         = 0x13;     /* default data port for PTP/PTR device                         */
+       int32 irqHack                = FALSE;    /* IRQ HACK for OASIS.                                          */
 
 static TMLN TerminalLines[TERMINALS] = {        /* four terminals   */
     { 0 }
@@ -335,6 +336,8 @@ static REG sio_reg[] = {
                "BOOL to determine whether a keyboard interrupt is pending"), REG_RO         },
     { HRDATAD (KEYBDH,   keyboardInterruptHandler,   16,
                "Address of keyboard interrupt handler")                                     },
+    { DRDATAD(IRQHACK,   irqHack, 3,
+               "BOOL to enable IRQ HACK for OASIS."),                                       },
     { NULL }
 };
 
@@ -1131,10 +1134,12 @@ static t_stat sio_dev_set_interruptoff(UNIT *uptr, int32 value, CONST char *cptr
 }
 
 static t_stat sio_svc(UNIT *uptr) {
-    if (sio0s(0, 0, 0) & KBD_HAS_CHAR)
+    int32 sio_status = sio0s(irqHack, 0, 0);
+    if (((sio_status & SIO_CAN_READ) && (irqHack == TRUE)) || ((sio_status & KBD_HAS_CHAR) && (irqHack == FALSE))) {
         keyboardInterrupt = TRUE;
+    }
     if (sio_unit.flags & UNIT_SIO_INTERRUPT)
-        sim_activate(&sio_unit, sio_unit.wait);             /* activate unit    */
+        sim_activate(&sio_unit, 1000); // sio_unit.wait);             /* activate unit    */
     return SCPE_OK;
 }
 
