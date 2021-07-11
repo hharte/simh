@@ -79,6 +79,7 @@ typedef struct {
     uint8   ctc_tc[4];      /* Z80-CTC Time Constant */
     uint8   ctc_count[4];   /* Z80-CTC current count */
     uint8   ctc_vec;        /* Z80-CTC Interrupt Vector */
+    uint16  ctc_vec_table;  /* Z80-CTC Interrupt Vector table */
     uint8   dma;            /* Z80-DMA I/O register */
 } ADCS6_INFO;
 
@@ -91,12 +92,14 @@ extern t_stat show_iobase(FILE *st, UNIT *uptr, int32 val, CONST void *desc);
 extern uint32 sim_map_resource(uint32 baseaddr, uint32 size, uint32 resource_type,
                                int32 (*routine)(const int32, const int32, const int32), const char* name, uint8 unmap);
 extern void setBankSelect(const int32 b);
+extern uint8 GetBYTEWrapper(const uint32 Addr);
 
 static t_stat adcs6_svc (UNIT *uptr);
 static t_stat adcs6_ctc_svc(UNIT* uptr);
 
-extern uint32 PCX;      /* external view of PC  */
-
+extern uint32 PCX;                              /* external view of PC  */
+extern int32  IR_S;                             /* Z80 Interrupt/Refresh register */
+extern int32  timerInterruptHandler;            /* SIO timer address of interrupt handling routine */
 #define ADCS6_CAPACITY          (77*1*26*128)   /* Default SSSD Disk Capacity         */
 
 #define MOTOR_TO_LIMIT          128
@@ -246,6 +249,7 @@ static REG adcs6_reg[] = {
     { HRDATAD (CTC2CNT,     adcs6_info_data.ctc_count[2],   8, "CTC2 Count"),               },
     { HRDATAD (CTC3CNT,     adcs6_info_data.ctc_count[3],   8, "CTC3 Count"),               },
     { HRDATAD (CTCVEC,      adcs6_info_data.ctc_vec,        8, "CTC  Interrupt Vector"),    },
+    { HRDATAD (CTCVECTABLE, adcs6_info_data.ctc_vec_table, 16, "CTC  Interrupt Vector Table"),},
     { HRDATAD (DMA,         adcs6_info_data.dma,            8, "DMA register"),             },
     { NULL }
 };
@@ -979,9 +983,16 @@ static int32 adcs6_ctc(const int32 port, const int32 io, const int32 data)
                         sim_activate_after(&adcs6_unit[ctc_channel + 4], 100 + (adcs6_info->ctc_tc[0] * adcs6_info->ctc_tc[1]));
                     }
                 } else {
-                    sim_debug(CTC_MSG, &adcs6_dev, ADDRESS_FORMAT
-                        " WR CTC%d VEC=0x%02x\n", PCX, ctc_channel, data);
                     adcs6_info->ctc_vec = data;
+                    adcs6_info->ctc_vec_table = (IR_S & 0xFF00) | adcs6_info->ctc_vec;
+                    sim_debug(CTC_MSG, &adcs6_dev, ADDRESS_FORMAT
+                        " WR CTC%d VEC=0x%02x, table: 0x%04x\n", PCX, ctc_channel, adcs6_info->ctc_vec, adcs6_info->ctc_vec_table);
+                    for (int i = 0; i < 4; i++) {
+                        sim_debug(CTC_MSG, &adcs6_dev,
+                            " CTC%d handler=0x%04x\n", i, GetBYTEWrapper((adcs6_info->ctc_vec_table) + i*2) | (GetBYTEWrapper((adcs6_info->ctc_vec_table) + i*2 + 1) << 8));
+                    }
+                    /* Set CTC1 timer interrupt handler in AltairZ80 SIO */
+                    timerInterruptHandler = GetBYTEWrapper((adcs6_info->ctc_vec_table) + 2) | (GetBYTEWrapper((adcs6_info->ctc_vec_table) + 3) << 8);
                 }
             }
             break;
