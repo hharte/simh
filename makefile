@@ -3042,6 +3042,7 @@ ${BIN}frontpaneltest${EXE} : frontpanel/FrontPanelTest.c sim_sock.c sim_frontpan
 # rtx2001a
 RTX2001AD = ${SIMHD}/RTX2001A/
 RTX2001AD_SRC = ${RTX2001AD}
+# RTX2001AD_TEST = ${RTX2001AD}/test
 RTX2001A_SRC = \
 	${RTX2001AD_SRC}rtx2001a_cpu.c ${RTX2001AD_SRC}rtx2001a_sys.c ${RTX2001AD_SRC}rtx2001a_decode.c \
 	${RTX2001AD_SRC}rtx2001a_execute.c ${RTX2001AD_SRC}rtx2001a_ab.c ${RTX2001AD_SRC}rtx2001a_mb.c \
@@ -3052,4 +3053,5 @@ rtx2001a : ${BIN}rtx2001a${EXE}
 ${BIN}rtx2001a${EXE} : ${SIM} ${RTX2001A_SRC}
 	${MKDIRBIN}
 	${CC} ${SIM} ${RTX2001A_SRC} ${CC_OUTSPEC} ${LDFLAGS}
+	$@ $(call find_test,${RTX2001AD},rtx2001a) ${TEST_ARG}
 
