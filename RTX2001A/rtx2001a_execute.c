@@ -74,7 +74,7 @@ char *shift_names[] = {
 char *memory_names[] = {
     /* 0 */ "", /* 1 */ "C"};
 
-void bad_insn()
+void bad_insn(void)
 {
     sim_printf("%s PC=0x%X IR=0x%X\n", sim_stop_messages[STOP_INVOPCOD], asic_file[PC], IR);
     // print_instruction(IR, cpr.pr, asic_file[PC]);
@@ -82,7 +82,7 @@ void bad_insn()
     // longjmp(bkpt_env, STOP_IBKPT);
 }
 
-void do_exit()
+void do_exit(void)
 {
     cpr.pr = ipr.pr & 0x0F;
     sim_debug(DBG_ASB_W, &cpu_dev, "CPR=0x%X\n", cpr.pr);
@@ -92,7 +92,7 @@ void do_exit()
     rs_pop();
 }
 
-void do_call()
+void do_call(void)
 {
     sim_debug(DBG_ASB_R, &cpu_dev, "PC=0x%04X\n", asic_file[PC]);
     rs_push(cpr.pr, asic_file[PC]);
@@ -101,7 +101,7 @@ void do_call()
     CLOCKS(1);
 }
 
-void do_qdup_0branch()
+void do_qdup_0branch(void)
 {
     if (!TOP)
     {
@@ -113,7 +113,7 @@ void do_qdup_0branch()
     CLOCKS(1);
 }
 
-/* void do_0branch()
+/* void do_0branch(void)
 {
     sim_debug(DBG_ASB_R, &cpu_dev, "PC=0x%X IR=0x%X\n", asic_file[PC], IR);
     asic_file[PC] = target_addr(IR, asic_file[PC]);
@@ -126,7 +126,7 @@ void do_qdup_0branch()
     CLOCKS(1);
 }
 */
-void do_0branch()
+void do_0branch(void)
 {
     if (0 == TOP)
     {
@@ -351,7 +351,7 @@ t_stat shift()
     return SCPE_OK;
 }
 
-void do_alu()
+void do_alu(void)
 {
     t_stat result = alu(TOP, NEXT, &NEXT);
     if (SCPE_OK != result)
@@ -372,14 +372,14 @@ void do_alu()
     sim_debug(DBG_ASB_W, &cpu_dev, " TOP=0x%X NEXT=0x%X\n", TOP, NEXT);
 }
 
-void do_asic_stream_mac()
+void do_asic_stream_mac(void)
 {
     bad_insn();
     TEST_EXIT;
     CLOCKS(1);
 }
 
-void do_branch()
+void do_branch(void)
 {
     sim_debug(DBG_ASB_R, &cpu_dev, "PC=0x%X IR=0x%X\n", asic_file[PC], IR);
     asic_file[PC] = target_addr(IR, asic_file[PC]);
@@ -387,7 +387,7 @@ void do_branch()
     CLOCKS(1);
 }
 
-void do_drop()
+void do_drop(void)
 {
     ps_pop();
     invert();
@@ -398,7 +398,7 @@ void do_drop()
     CLOCKS(1);
 }
 
-void do_dup()
+void do_dup(void)
 {
     ps_push(TOP);
     invert();
@@ -409,7 +409,7 @@ void do_dup()
     CLOCKS(1);
 }
 
-void do_ddup_alu()
+void do_ddup_alu(void)
 {
     t_stat result = SCPE_LOST;
     ps_push(NEXT);
@@ -423,7 +423,7 @@ void do_ddup_alu()
     CLOCKS(1);
 }
 
-void do_ddup_store_with_alu()
+void do_ddup_store_with_alu(void)
 {
     t_stat result = SCPE_LOST;
     store(TOP, NEXT);
@@ -437,12 +437,12 @@ void do_ddup_store_with_alu()
     second_cycle = TRUE;
 }
 
-void do_ddup_store_with_alu_2()
+void do_ddup_store_with_alu_2(void)
 {
     CLOCKS(1);
 }
 
-void do_fetch_2() /* SWAP {inv} */
+void do_fetch_2(void) /* SWAP {inv} */
 {
     int temp = TOP;
     TOP = NEXT;
@@ -454,7 +454,7 @@ void do_fetch_2() /* SWAP {inv} */
 /**
  ** @ swap
  */
-void fetch_swap()
+void fetch_swap(void)
 {
     RTX_WORD temp = NEXT;
     fetch(TOP, &NEXT);
@@ -464,7 +464,7 @@ void fetch_swap()
     second_cycle = TRUE;
 }
 
-void do_fetch_swap_alu_2() /* alu */
+void do_fetch_swap_alu_2(void) /* alu */
 {
     t_stat result = SCPE_LOST;
     if (SCPE_OK != (result = alu(TOP, NEXT, &NEXT)))
@@ -476,7 +476,7 @@ void do_fetch_swap_alu_2() /* alu */
     CLOCKS(1);
 }
 
-void do_gfetch()
+void do_gfetch(void)
 {
     CLOCKS(1);
     t_value temp = 0;
@@ -491,7 +491,7 @@ void do_gfetch()
 /**
  * TODO: ??? what happens for short_lit = 16, short_lit = 17???
  */
-void do_gfetch_drop()
+void do_gfetch_drop(void)
 {
     t_stat result = SCPE_LOST;
     t_value value;
@@ -505,7 +505,7 @@ void do_gfetch_drop()
     CLOCKS(1);
 }
 
-void do_fetch_over_alu_2() /* TUCK alu */
+void do_fetch_over_alu_2(void) /* TUCK alu */
 {
     t_stat result = SCPE_LOST;
     t_value temp = TOP;
@@ -517,13 +517,13 @@ void do_fetch_over_alu_2() /* TUCK alu */
     CLOCKS(1);
 }
 
-void do_fetch_swap_2()
+void do_fetch_swap_2(void)
 {
     invert();
     CLOCKS(1);
 }
 
-void do_gfetch_swap_alu()
+void do_gfetch_swap_alu(void)
 { /* ??? what happens for short_lit = 16, short_lit = 17??? */
     t_value temp;
     t_stat result = gfetch(SHORT_LIT, &temp);
@@ -536,7 +536,7 @@ void do_gfetch_swap_alu()
     CLOCKS(1);
 }
 
-void do_fetch_with_alu()
+void do_fetch_with_alu(void)
 {
     t_stat result = SCPE_LOST;
     ps_push(TOP);
@@ -551,12 +551,12 @@ void do_fetch_with_alu()
     second_cycle = TRUE;
 }
 
-void do_fetch_with_alu_2()
+void do_fetch_with_alu_2(void)
 {
     CLOCKS(1);
 }
 
-void do_gstore()
+void do_gstore(void)
 {
     if (SHORT_LIT != 7)
         TEST_EXIT; /* important that TEST_EXIT come before gstore! */
@@ -570,7 +570,7 @@ void do_gstore()
     CLOCKS(1);
 }
 
-void do_lit_2() /* swap {inv} */
+void do_lit_2(void) /* swap {inv} */
 {
     t_value temp;
     temp = NEXT;
@@ -580,7 +580,7 @@ void do_lit_2() /* swap {inv} */
     CLOCKS(1);
 }
 
-void do_lit_swap_alu_2()
+void do_lit_swap_alu_2(void)
 {
     t_stat result = alu(TOP, NEXT, &NEXT);
     if (SCPE_OK != result)
@@ -592,7 +592,7 @@ void do_lit_swap_alu_2()
     CLOCKS(1);
 }
 
-void do_next()
+void do_next(void)
 {
     if (0 != asic_file[I])
     { /* loop */
@@ -607,7 +607,7 @@ void do_next()
     CLOCKS(1);
 }
 
-void do_nip()
+void do_nip(void)
 {
     NEXT = TOP;
     ps_pop();
@@ -617,7 +617,7 @@ void do_nip()
     CLOCKS(1);
 }
 
-void do_over()
+void do_over(void)
 {
     ps_push(NEXT);
     invert();
@@ -628,7 +628,7 @@ void do_over()
     CLOCKS(1);
 }
 
-void do_shift()
+void do_shift(void)
 {
     t_stat result;
     invert();
@@ -640,7 +640,7 @@ void do_shift()
     CLOCKS(1);
 }
 
-void do_short_lit_swap_alu()
+void do_short_lit_swap_alu(void)
 {
     t_stat result;
     if (SCPE_OK != (result = alu(TOP, SHORT_LIT, &TOP)))
@@ -652,7 +652,7 @@ void do_short_lit_swap_alu()
     sim_debug(DBG_ASB_W, &cpu_dev, " TOP=0x%X NEXT=0x%X\n", TOP, NEXT);
 }
 
-void do_store()
+void do_store(void)
 {
     store(TOP, NEXT);
     ps_pop();
@@ -661,14 +661,14 @@ void do_store()
     second_cycle = TRUE;
 }
 
-void do_store_2()
+void do_store_2(void)
 {
     ps_pop();
     invert();
     CLOCKS(1);
 }
 
-void do_store_lit()
+void do_store_lit(void)
 {
     store(TOP, NEXT);
     ps_pop();
@@ -678,12 +678,12 @@ void do_store_lit()
     second_cycle = TRUE;
 }
 
-void do_store_lit_2()
+void do_store_lit_2(void)
 {
     CLOCKS(1);
 }
 
-void do_swap()
+void do_swap(void)
 {
     t_value temp = TOP;
     t_stat result;
@@ -700,7 +700,7 @@ void do_swap()
     CLOCKS(1);
 }
 
-void do_tuck_alu()
+void do_tuck_alu(void)
 {
     t_value temp = NEXT;
     NEXT = TOP;
@@ -714,7 +714,7 @@ void do_tuck_alu()
     CLOCKS(1);
 }
 
-void do_tuck_store_with_alu()
+void do_tuck_store_with_alu(void)
 {
     store(TOP, NEXT);
     NEXT = TOP;
@@ -727,7 +727,7 @@ void do_tuck_store_with_alu()
     second_cycle = TRUE;
 }
 
-void do_tuck_store_with_alu_2()
+void do_tuck_store_with_alu_2(void)
 {
     CLOCKS(1);
 }
@@ -735,7 +735,7 @@ void do_tuck_store_with_alu_2()
 /**
  * D swap
  */
-void D_swap()
+void D_swap(void)
 {
     ps_push(TOP);
     _long_fetch(cpr.fields.pr, asic_file[PC], &NEXT);
@@ -745,7 +745,7 @@ void D_swap()
     second_cycle = TRUE;
 }
 
-void do_short_lit()
+void do_short_lit(void)
 {
     ps_push(SHORT_LIT);
     invert();
@@ -753,7 +753,7 @@ void do_short_lit()
     CLOCKS(1);
 }
 
-void do_uslash_one_tick()
+void do_uslash_one_tick(void)
 {
     /* really sleazy definition to make things work for now ???? */
     /* undoes the preceeding d2* */
@@ -765,7 +765,7 @@ void do_uslash_one_tick()
         TOP = TOP | 0x8000;
 }
 
-void do_uslash_tick()
+void do_uslash_tick(void)
 {
     /* really sleazy definition to make things work for now ???? */
     /* do nothing -- save the division up for the end! */
@@ -773,7 +773,7 @@ void do_uslash_tick()
     CLOCKS(1);
 }
 
-void do_uslash_tick_tick()
+void do_uslash_tick_tick(void)
 {
     /* really sleazy definition to make things work for now ???? */
     /* do all the division at once */
@@ -782,9 +782,9 @@ void do_uslash_tick_tick()
     dividend = ((t_uint64)TOP << 16) & 0xFFFF0000;
     dividend = dividend | (t_uint64)(NEXT & 0xFFFF);
     divisor = asic_file[MD];
-    quotient = dividend / divisor;
+    quotient = (RTX_WORD)(dividend / divisor);
     dividend = dividend - ((t_uint64)quotient * (t_uint64)divisor);
-    remainder = dividend;
+    remainder = (RTX_WORD)dividend;
     TOP = remainder;
     NEXT = quotient;
     TEST_EXIT;

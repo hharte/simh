@@ -41,8 +41,8 @@
  * if NUMBER_OF_ROUTINES is changed !!!!!
  */
 #define NUMBER_OF_ROUTINES 128
-extern void (*dispatch_vector_1[NUMBER_OF_ROUTINES])();
-extern void (*dispatch_vector_2[NUMBER_OF_ROUTINES])();
+extern void (*dispatch_vector_1[NUMBER_OF_ROUTINES])(void);
+extern void (*dispatch_vector_2[NUMBER_OF_ROUTINES])(void);
 
 extern void init_dispatch_vectors(); // Function dispatch vector
 
