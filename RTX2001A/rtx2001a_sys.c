@@ -95,6 +95,8 @@ t_stat fprint_sym(FILE *of, t_addr addr, t_value *val, UNIT *uptr, int32 sw)
 
     case RS:
     {
+      ReturnStack *ptr;
+
       fprintf(of, "RSP=%d ", spr.fields.rsp);
       if (0 == spr.fields.rsp)
       {
@@ -104,7 +106,7 @@ t_stat fprint_sym(FILE *of, t_addr addr, t_value *val, UNIT *uptr, int32 sw)
 
       fprintf(of, "%d:0x%04X ", ipr.fields.pr, asic_file[I]);
 
-      ReturnStack *ptr = &rs[spr.fields.rsp];
+      ptr = &rs[spr.fields.rsp];
       while (ptr != &rs[1])
       {
         fprintf(of, "%d:0x%04X ", ptr->fields.ipr, ptr->fields.i);
@@ -116,6 +118,7 @@ t_stat fprint_sym(FILE *of, t_addr addr, t_value *val, UNIT *uptr, int32 sw)
 
     case PS:
     {
+      RTX_WORD *ptr;
       fprintf(of, "PSP=%d ", spr.fields.psp);
       if (0 == spr.fields.psp)
       {
@@ -129,7 +132,7 @@ t_stat fprint_sym(FILE *of, t_addr addr, t_value *val, UNIT *uptr, int32 sw)
 
       fprintf(of, "0x%X ", NEXT);
 
-      RTX_WORD *ptr = &ps[spr.fields.psp];
+      ptr = &ps[spr.fields.psp];
       while (ptr != &ps[2])
       {
         printf("0x%X ", *ptr & D16_MASK);
@@ -287,6 +290,7 @@ t_stat sim_load(FILE *fptr, const char *buf, const char *fnam, t_bool flag)
   int bytesRead = fread(&header, sizeof(header), 1, fptr);
   while (!feof(fptr))
   {
+    int value, i;
     if (':' != header.leader)
     {
       sim_messagef(SCPE_INCOMP, "input file not in proper .HEX format, ");
@@ -311,8 +315,8 @@ t_stat sim_load(FILE *fptr, const char *buf, const char *fnam, t_bool flag)
     }
 
     word_to_int(cargo.address, &address);
-    int value;
-    for (int i = 0; i < len * 2; i++)
+
+    for (i = 0; i < len * 2; i++)
     {
       byte_to_int(&cargo.body[i], &value);
       byte_store(address, value);

@@ -100,6 +100,7 @@ t_stat gfetch(t_addr offset, t_value *data)
 
     case 0x19: // RCV
     {
+        t_stat status;
         // if (hostmode) /* invoke fsm for serving host mode */
         // {
         //     return (host_read());
@@ -112,7 +113,7 @@ t_stat gfetch(t_addr offset, t_value *data)
             return SCPE_OK;
         }
         *data = 0;
-        t_stat status = sim_poll_kbd();
+        status = sim_poll_kbd();
         switch (status)
         {
         case SCPE_OK:   // no char
@@ -217,6 +218,7 @@ t_stat gfetch(t_addr offset, t_value *data)
     {
         IMR _imr;
         IVR _ivr;
+        uint32 pri;
 
         _ivr.fields.ivb = ibc.fields.ivb; // Interrupt Vector Base, MA10 - MA15
         sim_debug_bits_hdr(DBG_ASB_R, &cpu_dev, "IBCR", ibc_bits, ibc.pr, ibc.pr, 1);
@@ -224,7 +226,7 @@ t_stat gfetch(t_addr offset, t_value *data)
         _imr.pr = imr.pr;
         sim_debug_bits_hdr(DBG_ASB_R, &cpu_dev, "IMR", imr_bits, imr.pr, imr.pr, 1);
 
-        for (uint32 pri = 15; pri > 0; pri--)
+        for (pri = 15; pri > 0; pri--)
         {
             if (_imr.pr & 1)
             {

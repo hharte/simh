@@ -166,9 +166,10 @@ t_stat shift()
 
     case 0x0003: /* 2*c */
     {
+        t_value temp;
         CR ocr;
         ocr.pr = cr.pr;
-        t_value temp = (TOP << 1) & 0xFFFE;
+        temp = (TOP << 1) & 0xFFFE;
         if (CY)
         {
             temp = temp | 1;
@@ -195,9 +196,10 @@ t_stat shift()
 
     case 0x0005: // c2/
     {
+        t_value temp;
         CR ocr;
         ocr.pr = cr.pr;
-        t_value temp = (TOP >> 1) & 0x7FFF;
+        temp = (TOP >> 1) & 0x7FFF;
         if (CY)
         {
             temp = temp | 0x8000;
@@ -221,8 +223,9 @@ t_stat shift()
     case 0x0007: // 2/
     {
         CR ocr;
-        ocr.pr = cr.pr;
         t_value temp = (TOP >> 1) & 0x7FFF;
+        ocr.pr = cr.pr;
+
         if (TOP & 0x8000)
         {
             temp |= 0x8000;
@@ -261,10 +264,10 @@ t_stat shift()
 
     case 0x000B: // D2*c
     {
-        CR ocr;
-        ocr.pr = cr.pr;
         t_value temp = (NEXT & 0x8000) ? 1 : 0;
         t_value tempa = (TOP & 0x8000) ? 1 : 0;
+        CR ocr;
+        ocr.pr = cr.pr;
         NEXT = (NEXT << 1) & 0xFFFE;
         if (CY)
         {
@@ -280,9 +283,10 @@ t_stat shift()
 
     case 0x000C: // cUD2/
     {
+        t_value temp = (TOP & 0x0001) ? 1 : 0;
         CR ocr;
         ocr.pr = cr.pr;
-        t_value temp = (TOP & 0x0001) ? 1 : 0;
+
         TOP = (TOP >> 1) & 0x7FFF;
         if (CY)
             TOP |= 0x8000;
@@ -296,10 +300,10 @@ t_stat shift()
 
     case 0x000D: // cD2/
     {
-        CR ocr;
-        ocr.pr = cr.pr;
         t_value temp = (TOP & 0x0001) ? 1 : 0;
         t_value tempa = (NEXT & 0x0001) ? 1 : 0;
+        CR ocr;
+        ocr.pr = cr.pr;
         TOP = (TOP >> 1) & 0x7FFF;
         if (CY)
             TOP |= 0x8000;
@@ -313,9 +317,9 @@ t_stat shift()
 
     case 0x000E: // UD2/
     {
+        t_value temp = (TOP & 0x0001) ? 1 : 0;
         CR ocr;
         ocr.pr = cr.pr;
-        t_value temp = (TOP & 0x0001) ? 1 : 0;
         TOP = (TOP >> 1) & 0x7FFF;
         NEXT = (NEXT >> 1) & 0x7FFF;
         if (temp)
@@ -327,10 +331,10 @@ t_stat shift()
 
     case 0x000F: // D2/
     {
-        CR ocr;
-        ocr.pr = cr.pr;
         t_value temp = (TOP & 0x8000) ? 1 : 0;
         t_value tempa = (TOP & 0x0001) ? 1 : 0;
+        CR ocr;
+        ocr.pr = cr.pr;
         TOP = (TOP >> 1) & 0x7FFF;
         TOP |= temp;
         CY = temp;
@@ -389,9 +393,10 @@ void do_branch(void)
 
 void do_drop(void)
 {
+    t_stat result;
     ps_pop();
     invert();
-    t_stat result = shift();
+    result = shift();
     if (SCPE_OK != result)
         ABORT(result);
     TEST_EXIT;
@@ -400,9 +405,10 @@ void do_drop(void)
 
 void do_dup(void)
 {
+    t_stat result;
     ps_push(TOP);
     invert();
-    t_stat result = shift();
+    result = shift();
     if (SCPE_OK != result)
         ABORT(result);
     TEST_EXIT;
@@ -478,9 +484,9 @@ void do_fetch_swap_alu_2(void) /* alu */
 
 void do_gfetch(void)
 {
-    CLOCKS(1);
     t_value temp = 0;
     t_stat result = gfetch(SHORT_LIT, &temp);
+    CLOCKS(1);
     if (SCPE_OK != result)
         ABORT(result);
     ps_push(temp);
@@ -558,10 +564,11 @@ void do_fetch_with_alu_2(void)
 
 void do_gstore(void)
 {
+    t_stat result;
     if (SHORT_LIT != 7)
         TEST_EXIT; /* important that TEST_EXIT come before gstore! */
 
-    t_stat result = gstore(SHORT_LIT, TOP);
+    result = gstore(SHORT_LIT, TOP);
     if (SCPE_OK != result)
         ABORT(result);
     if (SHORT_LIT != 9)
@@ -619,9 +626,10 @@ void do_nip(void)
 
 void do_over(void)
 {
+    t_stat result;
     ps_push(NEXT);
     invert();
-    t_stat result = shift();
+    result = shift();
     if (SCPE_OK != result)
         ABORT(result);
     TEST_EXIT;
@@ -702,9 +710,10 @@ void do_swap(void)
 
 void do_tuck_alu(void)
 {
+    t_stat result;
     t_value temp = NEXT;
     NEXT = TOP;
-    t_stat result = alu(TOP, temp, &TOP);
+    result = alu(TOP, temp, &TOP);
     if (SCPE_OK != result)
         ABORT(result);
     result = shift();
@@ -716,10 +725,11 @@ void do_tuck_alu(void)
 
 void do_tuck_store_with_alu(void)
 {
+    t_stat result;
     store(TOP, NEXT);
     NEXT = TOP;
     ps_pop();
-    t_stat result = alu(TOP, SHORT_LIT, &TOP);
+    result = alu(TOP, SHORT_LIT, &TOP);
     if (SCPE_OK != result)
         ABORT(result);
     TEST_EXIT;
@@ -1063,11 +1073,13 @@ void print_instruction(t_value instruction, t_value page, t_addr address)
 
     case OP_CALL:
     {
+        t_value i;
+        int j;
         char buffer[64];
         memset(buffer, '\0', sizeof(buffer));
         sprintf(buffer, "CALL %d:0x%X ", page, ((instruction << 1) & D16_MASK));
-        t_value i = strlen(buffer);
-        for (int j = 9; j > 0; j--, i++)
+        i = strlen(buffer);
+        for (j = 9; j > 0; j--, i++)
         {
             dump_header(&buffer[i], j);
         }
