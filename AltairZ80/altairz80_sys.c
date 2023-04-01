@@ -107,6 +107,7 @@ extern DEVICE djhdc_dev;
 
 extern DEVICE z180io_dev;
 extern DEVICE z180asci_dev;
+extern DEVICE rc_sdcard_dev;
 
 extern long disasm (unsigned char *data, char *output, int segsize, long offset);
 extern t_stat parse_sym_m68k(char* c, t_addr a, UNIT* u, t_value* val, int32 sw);
@@ -200,6 +201,7 @@ DEVICE      *sim_devices[]  = {
     /* Zilog Z180 */
     &z180io_dev,
     &z180asci_dev,
+    &rc_sdcard_dev,
     NULL
 };
 
