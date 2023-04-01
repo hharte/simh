@@ -105,6 +105,9 @@ extern DEVICE wdi2_dev;
 extern DEVICE scp300f_dev;
 extern DEVICE djhdc_dev;
 
+extern DEVICE z180io_dev;
+extern DEVICE z180asci_dev;
+
 extern long disasm (unsigned char *data, char *output, int segsize, long offset);
 extern t_stat parse_sym_m68k(char* c, t_addr a, UNIT* u, t_value* val, int32 sw);
 
@@ -194,6 +197,9 @@ DEVICE      *sim_devices[]  = {
     &n8vem_dev,
     /* Floppy Controller Cores */
     &i8272_dev, &wd179x_dev,
+    /* Zilog Z180 */
+    &z180io_dev,
+    &z180asci_dev,
     NULL
 };
 
@@ -318,26 +324,26 @@ static const char *const MnemonicsCB[256] = {
 
 static const char *const MnemonicsED[256] = {
 /*  0/8             1/9             2/A             3/B             4/C             5/D             6/E             7/F                         */
-    "DB EDh,00h",   "DB EDh,01h",   "DB EDh,02h",   "DB EDh,03h",   "DB EDh,04h",   "DB EDh,05h",   "DB EDh,06h",   "DB EDh,07h",   /*  00-07   */
-    "DB EDh,08h",   "DB EDh,09h",   "DB EDh,0Ah",   "DB EDh,0Bh",   "DB EDh,0Ch",   "DB EDh,0Dh",   "DB EDh,0Eh",   "DB EDh,0Fh",   /*  08-0f   */
-    "DB EDh,10h",   "DB EDh,11h",   "DB EDh,12h",   "DB EDh,13h",   "DB EDh,14h",   "DB EDh,15h",   "DB EDh,16h",   "DB EDh,17h",   /*  10-17   */
-    "DB EDh,18h",   "DB EDh,19h",   "DB EDh,1Ah",   "DB EDh,1Bh",   "DB EDh,1Ch",   "DB EDh,1Dh",   "DB EDh,1Eh",   "DB EDh,1Fh",   /*  18-1f   */
-    "DB EDh,20h",   "DB EDh,21h",   "DB EDh,22h",   "DB EDh,23h",   "DB EDh,24h",   "DB EDh,25h",   "DB EDh,26h",   "DB EDh,27h",   /*  20-27   */
-    "DB EDh,28h",   "DB EDh,29h",   "DB EDh,2Ah",   "DB EDh,2Bh",   "DB EDh,2Ch",   "DB EDh,2Dh",   "DB EDh,2Eh",   "DB EDh,2Fh",   /*  28-2f   */
-    "DB EDh,30h",   "DB EDh,31h",   "DB EDh,32h",   "DB EDh,33h",   "DB EDh,34h",   "DB EDh,35h",   "DB EDh,36h",   "DB EDh,37h",   /*  30-37   */
-    "DB EDh,38h",   "DB EDh,39h",   "DB EDh,3Ah",   "DB EDh,3Bh",   "DB EDh,3Ch",   "DB EDh,3Dh",   "DB EDh,3Eh",   "DB EDh,3Fh",   /*  38-3f   */
+    "IN0 B,(*h)",   "OUT0 (*h),B",  "DB EDh,02h",   "DB EDh,03h",   "TST B",        "DB EDh,05h",   "DB EDh,06h",   "DB EDh,07h",   /*  00-07   */
+    "IN0 C,(*h)",   "OUT0 (*h),C",  "DB EDh,0Ah",   "DB EDh,0Bh",   "TST C",        "DB EDh,0Dh",   "DB EDh,0Eh",   "DB EDh,0Fh",   /*  08-0f   */
+    "IN0 D,(*h)",   "OUT0 (*h),D",  "DB EDh,12h",   "DB EDh,13h",   "TST D",        "DB EDh,15h",   "DB EDh,16h",   "DB EDh,17h",   /*  10-17   */
+    "IN0 E,(*h)",   "OUT0 (*h),E",  "DB EDh,1Ah",   "DB EDh,1Bh",   "TST E",        "DB EDh,1Dh",   "DB EDh,1Eh",   "DB EDh,1Fh",   /*  18-1f   */
+    "IN0 H,(*h)",   "OUT0 (*h),H",  "DB EDh,22h",   "DB EDh,23h",   "TST H",        "DB EDh,25h",   "DB EDh,26h",   "DB EDh,27h",   /*  20-27   */
+    "IN0 L,(*h)",   "OUT0 (*h),L",  "DB EDh,2Ah",   "DB EDh,2Bh",   "TST L",        "DB EDh,2Dh",   "DB EDh,2Eh",   "DB EDh,2Fh",   /*  28-2f   */
+    "DB EDh,30h",   "DB EDh,31h",   "DB EDh,32h",   "DB EDh,33h",   "TST (HL)",     "DB EDh,35h",   "DB EDh,36h",   "DB EDh,37h",   /*  30-37   */
+    "IN0 A,(*h)",   "OUT0 (*h),A",  "DB EDh,3Ah",   "DB EDh,3Bh",   "TST A",        "DB EDh,3Dh",   "DB EDh,3Eh",   "DB EDh,3Fh",   /*  38-3f   */
     "IN B,(C)",     "OUT (C),B",    "SBC HL,BC",    "LD (#h),BC",   "NEG",          "RETN",         "IM 0",         "LD I,A",       /*  40-47   */
-    "IN C,(C)",     "OUT (C),C",    "ADC HL,BC",    "LD BC,(#h)",   "DB EDh,4Ch",   "RETI",         "DB EDh,4Eh",   "LD R,A",       /*  48-4f   */
+    "IN C,(C)",     "OUT (C),C",    "ADC HL,BC",    "LD BC,(#h)",   "MLT BC",       "RETI",         "DB EDh,4Eh",   "LD R,A",       /*  48-4f   */
     "IN D,(C)",     "OUT (C),D",    "SBC HL,DE",    "LD (#h),DE",   "DB EDh,54h",   "DB EDh,55h",   "IM 1",         "LD A,I",       /*  50-57   */
-    "IN E,(C)",     "OUT (C),E",    "ADC HL,DE",    "LD DE,(#h)",   "DB EDh,5Ch",   "DB EDh,5Dh",   "IM 2",         "LD A,R",       /*  58-5f   */
-    "IN H,(C)",     "OUT (C),H",    "SBC HL,HL",    "LD (#h),HL",   "DB EDh,64h",   "DB EDh,65h",   "DB EDh,66h",   "RRD",          /*  60-67   */
-    "IN L,(C)",     "OUT (C),L",    "ADC HL,HL",    "LD HL,(#h)",   "DB EDh,6Ch",   "DB EDh,6Dh",   "DB EDh,6Eh",   "RLD",          /*  68-6f   */
-    "IN F,(C)",     "DB EDh,71h",   "SBC HL,SP",    "LD (#h),SP",   "DB EDh,74h",   "DB EDh,75h",   "DB EDh,76h",   "DB EDh,77h",   /*  70-77   */
-    "IN A,(C)",     "OUT (C),A",    "ADC HL,SP",    "LD SP,(#h)",   "DB EDh,7Ch",   "DB EDh,7Dh",   "DB EDh,7Eh",   "DB EDh,7Fh",   /*  78-7f   */
-    "DB EDh,80h",   "DB EDh,81h",   "DB EDh,82h",   "DB EDh,83h",   "DB EDh,84h",   "DB EDh,85h",   "DB EDh,86h",   "DB EDh,87h",   /*  80-87   */
-    "DB EDh,88h",   "DB EDh,89h",   "DB EDh,8Ah",   "DB EDh,8Bh",   "DB EDh,8Ch",   "DB EDh,8Dh",   "DB EDh,8Eh",   "DB EDh,8Fh",   /*  88-8f   */
-    "DB EDh,90h",   "DB EDh,91h",   "DB EDh,92h",   "DB EDh,93h",   "DB EDh,94h",   "DB EDh,95h",   "DB EDh,96h",   "DB EDh,97h",   /*  90-97   */
-    "DB EDh,98h",   "DB EDh,99h",   "DB EDh,9Ah",   "DB EDh,9Bh",   "DB EDh,9Ch",   "DB EDh,9Dh",   "DB EDh,9Eh",   "DB EDh,9Fh",   /*  98-9f   */
+    "IN E,(C)",     "OUT (C),E",    "ADC HL,DE",    "LD DE,(#h)",   "MLT DE",       "DB EDh,5Dh",   "IM 2",         "LD A,R",       /*  58-5f   */
+    "IN H,(C)",     "OUT (C),H",    "SBC HL,HL",    "LD (#h),HL",   "TST *h",       "DB EDh,65h",   "DB EDh,66h",   "RRD",          /*  60-67   */
+    "IN L,(C)",     "OUT (C),L",    "ADC HL,HL",    "LD HL,(#h)",   "MLT HL",       "DB EDh,6Dh",   "DB EDh,6Eh",   "RLD",          /*  68-6f   */
+    "IN F,(C)",     "OUT (C),0",    "SBC HL,SP",    "LD (#h),SP",   "TSTIO *h",     "DB EDh,75h",   "SLP",          "DB EDh,77h",   /*  70-77   */
+    "IN A,(C)",     "OUT (C),A",    "ADC HL,SP",    "LD SP,(#h)",   "MLT SP",       "DB EDh,7Dh",   "DB EDh,7Eh",   "DB EDh,7Fh",   /*  78-7f   */
+    "DB EDh,80h",   "DB EDh,81h",   "DB EDh,82h",   "OTIM",         "DB EDh,84h",   "DB EDh,85h",   "DB EDh,86h",   "DB EDh,87h",   /*  80-87   */
+    "DB EDh,88h",   "DB EDh,89h",   "DB EDh,8Ah",   "OTDM",         "DB EDh,8Ch",   "DB EDh,8Dh",   "DB EDh,8Eh",   "DB EDh,8Fh",   /*  88-8f   */
+    "DB EDh,90h",   "DB EDh,91h",   "DB EDh,92h",   "OTIMR",        "DB EDh,94h",   "DB EDh,95h",   "DB EDh,96h",   "DB EDh,97h",   /*  90-97   */
+    "DB EDh,98h",   "DB EDh,99h",   "DB EDh,9Ah",   "OTDMR",        "DB EDh,9Ch",   "DB EDh,9Dh",   "DB EDh,9Eh",   "DB EDh,9Fh",   /*  98-9f   */
     "LDI",          "CPI",          "INI",          "OUTI",         "DB EDh,A4h",   "DB EDh,A5h",   "DB EDh,A6h",   "DB EDh,A7h",   /*  a0-a7   */
     "LDD",          "CPD",          "IND",          "OUTD",         "DB EDh,ACh",   "DB EDh,ADh",   "DB EDh,AEh",   "DB EDh,AFh",   /*  a8-af   */
     "LDIR",         "CPIR",         "INIR",         "OTIR",         "DB EDh,B4h",   "DB EDh,B5h",   "DB EDh,B6h",   "DB EDh,B7h",   /*  b0-b7   */
@@ -430,7 +436,7 @@ void prepareMemoryAccessMessage(const t_addr loc) {
 
 void prepareInstructionMessage(const t_addr loc, const uint32 op) {
     sprintf(instructionMessage, "Instruction \"%s\" breakpoint [%05xh]", chiptype == CHIP_TYPE_8080 ?  Mnemonics8080[op & 0xff] :
-            (chiptype == CHIP_TYPE_Z80 ? MnemonicsZ80[op & 0xff] : "???"), loc);
+            ((chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180) ? MnemonicsZ80[op & 0xff] : "???"), loc);
 }
 
 /* Ensure that hex number starts with a digit when printed */
@@ -575,6 +581,7 @@ t_stat fprint_sym(FILE *of, t_addr addr, t_value *val, UNIT *uptr, int32 sw) {
             break;
 
         case CHIP_TYPE_Z80:
+        case CHIP_TYPE_Z180:
             r = DAsm(disasm_result, val, TRUE, addr);
             break;
 

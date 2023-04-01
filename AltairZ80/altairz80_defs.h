@@ -58,6 +58,7 @@
 typedef enum {
     CHIP_TYPE_8080 = 0,
     CHIP_TYPE_Z80,
+    CHIP_TYPE_Z180,
     CHIP_TYPE_8086,
     CHIP_TYPE_M68K,     /* must come after 8080, Z80 and 8086 */
     NUM_CHIP_TYPE,      /* must be last */

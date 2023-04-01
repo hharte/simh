@@ -75,9 +75,9 @@
 /*  SET_PV and SET_PV2 are used to provide correct PARITY flag semantics for the 8080 in cases
     where the Z80 uses the overflow flag.
 */
-#define SET_PVS(s) ((chiptype == CHIP_TYPE_Z80) ? (((cbits >> 6) ^ (cbits >> 5)) & 4) : (PARITY(s)))
+#define SET_PVS(s) ((chiptype != CHIP_TYPE_8080) ? (((cbits >> 6) ^ (cbits >> 5)) & 4) : (PARITY(s)))
 #define SET_PV (SET_PVS(sum))
-#define SET_PV2(x) ((chiptype == CHIP_TYPE_Z80) ? (((temp == (x)) << 2)) : (PARITY(temp)))
+#define SET_PV2(x) ((chiptype != CHIP_TYPE_8080) ? (((temp == (x)) << 2)) : (PARITY(temp)))
 
 /*  CHECK_CPU_8080 must be invoked whenever a Z80 only instruction is executed
     In case a Z80 instruction is executed on an 8080 there are two cases:
@@ -116,6 +116,9 @@
 #define CALLC(cond) {                                       \
     if (cond) {                                             \
         register uint32 adrr = GET_WORD(PC);                \
+        if (adrr == 0x4191) {                               \
+/*            sim_printf(ADDRESS_FORMAT "Call thunk function: Bank 0x%x, Addr:0x%02x:%04x\n", PCX, GetBYTE(PC+4)/3, GetBYTE(PC+4), GET_WORD(PC+2)); */ \
+        }                                                   \
         CHECK_BREAK_WORD(SP - 2);                           \
         PUSH(PC + 2);                                       \
         PCQ_ENTRY(PCX);                                     \
@@ -262,6 +265,7 @@ UNIT cpu_unit = {
         int32 SR                = 0;                /* switch register                              */
         uint32 nmiInterrupt     = 0;                /* Non-maskable Interrupt                       */
         uint32 vectorInterrupt  = 0;                /* VI0-7 Vector Interrupt bitfield              */
+        uint32 z180Interrupt    = 0;                /* Z180 internal interrupts bitfield            */
         uint8 dataBus[MAX_INT_VECTORS];             /* Vector Interrupt data bus value              */
 static  int32 bankSelect        = 0;                /* determines selected memory bank              */
 static  uint32 common           = 0xc000;           /* addresses >= 'common' are in common memory   */
@@ -274,6 +278,12 @@ static  uint32 executedTStates  = 0;                /* executed t-states        
 static  uint16 pcq[PCQ_SIZE]    = { 0 };            /* PC queue                                     */
 static  int32 pcq_p             = 0;                /* PC queue ptr                                 */
 static  REG *pcq_r              = NULL;             /* PC queue reg ptr                             */
+uint8   z180_itc = 0x01;
+uint32 z180_cbr = 0;
+uint32 z180_bbr = 0;
+uint32 z180_cbar = 0xf0;
+uint32 z180_omcr = 0xff;
+uint32 z180_icr = 0x1f;
 
 #define HIST_MIN    16
 #define HIST_MAX    8192
@@ -500,14 +510,26 @@ REG cpu_reg[] = {
     }, /* 84 */
     { BRDATAD (DATABUS, dataBus, 16, 8,     MAX_INT_VECTORS, "Data bus pseudo register"),
         REG_RO + REG_CIRC   }, /* 85 */
-    { HRDATAD(MMIOBASE,  mmiobase,          24, "Base address for 68K Memory-mapped I/O"),
+    { HRDATAD(Z180INT,   z180Interrupt,     9, "Z180 Interrupt pseudo register"),
     }, /* 86 */
-    { HRDATAD(MMIOSIZE,  mmiosize,          17, "Size of 68K Memory-mapped I/O window"),
+    { HRDATAD(MMIOBASE,  mmiobase,          24, "Base address for 68K Memory-mapped I/O"),
     }, /* 87 */
-    { DRDATAD(M68KVAR,   m68kvariant,       17, "M68K Type (68000, 68010, etc.)"),
+    { HRDATAD(MMIOSIZE,  mmiosize,          17, "Size of 68K Memory-mapped I/O window"),
     }, /* 88 */
     { HRDATAD(NMI,       nmiInterrupt,       1, "NMI Interrupt pseudo register"),
     }, /* 89 */
+    { DRDATAD(M68KVAR,   m68kvariant,       17, "M68K Type (68000, 68010, etc.)"),
+    }, /* 90 */
+    { HRDATAD(CBR,       z180_cbr,           8, "Z180 MMU Common Base Register"),
+    }, /* 91 */
+    { HRDATAD(BBR,       z180_bbr,           8, "Z180 MMU Bank Base Register"),
+    }, /* 92 */
+    { HRDATAD(CBAR,      z180_cbar,          8, "Z180 MMU Common/Bank Register"),
+    }, /* 93 */
+    { HRDATAD(OMCR,      z180_omcr,          8, "Z180 MMU Operation Mode Control Register"),
+    }, /* 94 */
+    { HRDATAD(ICR,       z180_icr,           8, "Z180 MMU I/O Control Register"),
+    }, /* 95 */
     { NULL }
 };
 
@@ -520,6 +542,8 @@ static MTAB cpu_mod[] = {
     NULL, NULL, "Chooses 8080 CPU"},
     { MTAB_XTD | MTAB_VDV,  CHIP_TYPE_Z80,      NULL,           "Z80",          &cpu_set_chiptype,
         NULL, NULL, "Chooses Z80 CPU"   },
+    { MTAB_XTD | MTAB_VDV,  CHIP_TYPE_Z180,     NULL,           "Z180",         &cpu_set_chiptype,
+        NULL, NULL, "Chooses Z180 CPU"   },
     { MTAB_XTD | MTAB_VDV,  CHIP_TYPE_8086,     NULL,           "8086",         &cpu_set_chiptype,
         NULL, NULL, "Chooses 8086 CPU"   },
     { MTAB_XTD | MTAB_VDV,  CHIP_TYPE_M68K,     NULL,           "M68K",         &cpu_set_chiptype,
@@ -564,13 +588,15 @@ static MTAB cpu_mod[] = {
         NULL, "Disable programmed output messages"             },
     { MTAB_XTD | MTAB_VDV,  0,                  NULL,           "AZ80",         &cpu_set_ramtype,
         NULL, NULL, "Sets the RAM type to AltairZ80 RAM for 8080 / Z80 / 8086"  },
-    { MTAB_XTD | MTAB_VDV,  1,                  NULL,           "HRAM",         &cpu_set_ramtype,
+    { MTAB_XTD | MTAB_VDV,  1,                  NULL,           "Z180MMU",      &cpu_set_ramtype,
+        NULL, NULL, "Sets the RAM type to Z180 MMU"  },
+    { MTAB_XTD | MTAB_VDV,  2,                  NULL,           "HRAM",         &cpu_set_ramtype,
         NULL, NULL, "Sets the RAM type to NorthStar HRAM for 8080 / Z80 / 8086" },
-    { MTAB_XTD | MTAB_VDV,  2,                  NULL,           "VRAM",         &cpu_set_ramtype,
+    { MTAB_XTD | MTAB_VDV,  3,                  NULL,           "VRAM",         &cpu_set_ramtype,
         NULL, NULL, "Sets the RAM type to Vector RAM for 8080 / Z80 / 8086"    },
-    { MTAB_XTD | MTAB_VDV,  3,                  NULL,           "CRAM",         &cpu_set_ramtype,
+    { MTAB_XTD | MTAB_VDV,  4,                  NULL,           "CRAM",         &cpu_set_ramtype,
         NULL, NULL, "Sets the RAM type to Cromemco RAM for 8080 / Z80 / 8086"   },
-    { MTAB_XTD | MTAB_VDV,  4,                  NULL,           "B810",         &cpu_set_ramtype,
+    { MTAB_XTD | MTAB_VDV,  5,                  NULL,           "B810",         &cpu_set_ramtype,
         NULL, NULL, "Sets the RAM type AB Digital Design B810 8080 / Z80 / 8086"},
     { MTAB_VDV,             4,                  NULL,           "4KB",          &cpu_set_size,
         NULL, NULL, "Sets the RAM size to 4KB for 8080 / Z80 / 8086"        },
@@ -730,10 +756,11 @@ const char* handlerNameForPort(const int32 port) {
 
 
 #define RAM_TYPE_AZ80   0       /* Altair-Z80 RAM card */
-#define RAM_TYPE_HRAM   1       /* North Start Horizon RAM card */
-#define RAM_TYPE_VRAM   2       /* Vector Graphic RAM card */
-#define RAM_TYPE_CRAM   3       /* Cromemco RAM card */
-#define RAM_TYPE_B810   4       /* AB Digital Design B810 RAM card */
+#define RAM_TYPE_Z180   1       /* Zilog Z180 MMU */
+#define RAM_TYPE_HRAM   2       /* North Star Horizon RAM card */
+#define RAM_TYPE_VRAM   3       /* Vector Graphic RAM card */
+#define RAM_TYPE_CRAM   4       /* Cromemco RAM card */
+#define RAM_TYPE_B810   5       /* AB Digital Design B810 RAM card */
 #define MAX_RAM_TYPE    RAM_TYPE_B810
 
 static int32 ramtype = RAM_TYPE_AZ80;
@@ -1896,17 +1923,18 @@ uint32 sim_map_resource(uint32 baseaddr, uint32 size, uint32 resource_type,
             }
         }
     } else if (resource_type == RESOURCE_TYPE_IO) {
+
         for (i = baseaddr; i < baseaddr + size; i++)
             if (unmap) {
                 if (dev_table[i & 0xff].routine == routine) {
                     if (cpu_unit.flags & UNIT_CPU_VERBOSE)
-                        sim_printf("Unmapping  IO %04x, handler=%s\n", i, dev_table[i & 0xff].name);
+                        sim_printf("Unmapping  IO 0x%04x, handler=%s\n", i, dev_table[i & 0xff].name);
                     dev_table[i & 0xff].routine = &nulldev;
                     dev_table[i & 0xff].name = "nulldev";
                 }
             } else {
                 if (cpu_unit.flags & UNIT_CPU_VERBOSE)
-                    sim_printf("  Mapping  IO %04x, handler=%s\n", i, name);
+                    sim_printf("  Mapping  IO 0x%04x, handler=%s\n", i, name);
                 dev_table[i & 0xff].routine = routine;
                 dev_table[i & 0xff].name = name;
             }
@@ -1921,9 +1949,32 @@ static void PutBYTE(register uint32 Addr, const register uint32 Value) {
     MDEV m;
 
     Addr &= ADDRMASK;   /* registers are NOT guaranteed to be always 16-bit values */
-    if ((cpu_unit.flags & UNIT_CPU_BANKED) && (((common_low == 0) && (Addr < common)) || ((common_low == 1) && (Addr >= common))))
-        Addr |= bankSelect << MAXBANKSIZELOG2;
 
+    if (ramtype != RAM_TYPE_Z180) {
+        if ((cpu_unit.flags & UNIT_CPU_BANKED) && (((common_low == 0) && (Addr < common)) || ((common_low == 1) && (Addr >= common))))
+        Addr |= bankSelect << MAXBANKSIZELOG2;
+    }
+    else { /* Z180 MMU */
+        uint8 AddrH = (Addr >> 12) & 0x0F;
+        if (AddrH >= ((z180_cbar >> 4) & 0x0F)) { /* Address is in Common Area 1 */
+//            sim_printf("%s: CA1 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x = ",
+//                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+            Addr += (z180_cbr << 12);
+//            sim_printf("0x%05x\n", Addr);
+        }
+        else if (AddrH >= (z180_cbar & 0x0F)) {
+            /* Address is in Banked Area */
+//            sim_printf("%s: BA  CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x = ",
+//                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+            Addr += (z180_bbr << 12);
+            //            sim_printf("0x%05x\n", Addr);
+        }
+        else {
+            /* Address is in Common Area 0 */
+            sim_printf("%s: CA0 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x\n",
+                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+        }
+    }
     m = mmu_table[Addr >> LOG2PAGESIZE];
 
     if (m.isRAM)
@@ -1974,10 +2025,32 @@ static uint32 GetBYTE(register uint32 Addr) {
     MDEV m;
 
     Addr &= ADDRMASK;   /* registers are NOT guaranteed to be always 16-bit values */
-    if ((cpu_unit.flags & UNIT_CPU_BANKED) && (((common_low == 0) && (Addr < common)) || ((common_low == 1) && (Addr >= common))))
-        Addr |= bankSelect << MAXBANKSIZELOG2;
-    m = mmu_table[Addr >> LOG2PAGESIZE];
 
+    if (ramtype != RAM_TYPE_Z180) {
+        if ((cpu_unit.flags & UNIT_CPU_BANKED) && (((common_low == 0) && (Addr < common)) || ((common_low == 1) && (Addr >= common))))
+            Addr |= bankSelect << MAXBANKSIZELOG2;
+    } else { /* Z180 MMU */
+        uint8 AddrH = (Addr >> 12) & 0x0F;
+        if (AddrH >= ((z180_cbar >> 4) & 0x0F)) { /* Address is in Common Area 1 */
+//            sim_printf("%s: CA1 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x = ",
+//                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+            Addr += (z180_cbr << 12);
+//            sim_printf("0x%05x\n", Addr);
+        }
+        else if (AddrH >= (z180_cbar & 0x0F)) {
+            /* Address is in Banked Area */
+//            sim_printf("%s: BA  CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x = ",
+//                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+            Addr += (z180_bbr << 12);
+            //            sim_printf("0x%05x\n", Addr);
+        }
+        else {
+            /* Address is in Common Area 0 */
+            sim_printf("%s: CA0 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x\n",
+                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+        }
+    }
+    m = mmu_table[Addr >> LOG2PAGESIZE];
     if (m.isRAM)
         return M[Addr]; /* RAM */
     if (m.routine)
@@ -2223,7 +2296,7 @@ static t_stat sim_instr_mmu (void) {
     SP = SP_S;
     IX = IX_S;
     IY = IY_S;
-    specialProcessing = clockFrequency | nmiInterrupt | timerInterrupt | vectorInterrupt | keyboardInterrupt | sim_brk_summ;
+    specialProcessing = clockFrequency | nmiInterrupt | timerInterrupt | vectorInterrupt | z180Interrupt | keyboardInterrupt | sim_brk_summ;
     tStates = 0;
     if (rtc_avail) {
         startTime = sim_os_msec();
@@ -2245,7 +2318,7 @@ static t_stat sim_instr_mmu (void) {
                 } else /* make sure that sim_os_msec() is not called later */
                     clockFrequency = startTime = tStatesInSlice = 0;
             }
-            specialProcessing = clockFrequency | nmiInterrupt | timerInterrupt | vectorInterrupt | keyboardInterrupt | sim_brk_summ;
+            specialProcessing = clockFrequency | nmiInterrupt | timerInterrupt | vectorInterrupt | z180Interrupt | keyboardInterrupt | sim_brk_summ;
         }
 
         if (specialProcessing) { /* quick check for special processing */
@@ -2349,7 +2422,59 @@ static t_stat sim_instr_mmu (void) {
                     " INT(mode=2 intVector=%d vector=%04X PC=%04X)\n", PCX, intVector, vector, PC);
             }
 
-            if (keyboardInterrupt && (IFF_S & IFF1)) {
+            if (z180Interrupt && (IFF_S & 1) && (z180_itc & 0x7)) {
+                int32 vector;
+                uint32 tempZ180Interrupt = z180Interrupt;
+                uint32 intmask = 0;
+                uint8 intVector = 0;
+
+                if (z180_itc & 1) {
+                    /* Internal Z180 interrupts are enabled. */
+                    intmask = 0x1fc;
+                }
+
+                if ((z180_itc & 2)) {
+                    /* INT1 is enabled */
+                    intmask |= 1;
+                }
+
+                if ((z180_itc & 4)) {
+                    /* INT2 is enabled */
+                    intmask |= 2;
+                }
+
+                tempZ180Interrupt &= intmask;
+
+                if (tempZ180Interrupt != 0) {
+
+                    while ((tempZ180Interrupt & 1) == 0) {
+                        tempZ180Interrupt >>= 1;
+                        intVector++;
+                    }
+
+                    z180Interrupt &= ~(1 << intVector);
+
+                    specialProcessing = clockFrequency | sim_brk_summ;
+                    IFF_S = 0; /* disable interrupts */
+                    CHECK_BREAK_TWO_BYTES_EXTENDED(SP - 2, SP - 1, (z180Interrupt |= (1 << intVector), IFF_S |= 1));
+                    if ((GetBYTE(PC) == HALTINSTRUCTION) && ((cpu_unit.flags & UNIT_CPU_STOPONHALT) == 0)) {
+                        PUSH(PC + 1);
+                        PCQ_ENTRY(PC);
+                    }
+                    else {
+                        PUSH(PC);
+                        PCQ_ENTRY(PC - 1);
+                    }
+
+                    vector = (HIGH_REGISTER(IR_S) << 8) | (intVector << 1);
+                    PC = ((GetBYTE(vector + 1) << 8) | GetBYTE(vector)) & ADDRMASK;
+
+                    sim_debug(INT_MSG, &cpu_dev, ADDRESS_FORMAT
+                        " INT(z180 mode=2 intVector=%d vector=%04X PC=%04X)\n", PCX, intVector, vector, PC);
+                }
+            }
+
+            if (keyboardInterrupt && (IFF_S & 1)) {
                 keyboardInterrupt = FALSE;
                 specialProcessing = clockFrequency | sim_brk_summ;
                 IFF_S = 0; /* disable interrupts */
@@ -3197,6 +3322,7 @@ static t_stat sim_instr_mmu (void) {
 
             case HALTINSTRUCTION:   /* HALT */
                 tStates += (chiptype == CHIP_TYPE_8080 ? 7 : 4); /* HLT 7 */
+//                sim_printf(ADDRESS_FORMAT " HALT instruction.\n", PCX);
                 PC--;
                 if (cpu_unit.flags & UNIT_CPU_STOPONHALT) {
                     reason = STOP_HALT;
@@ -3472,7 +3598,7 @@ static t_stat sim_instr_mmu (void) {
 
             case 0x97:          /* SUB A */
                 tStates += 4;   /* SUB A 4 */
-                AF = (chiptype == CHIP_TYPE_Z80) ? 0x42 : 0x56;
+                AF = ((chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180)) ? 0x42 : 0x56;
                 break;
 
             case 0x98:          /* SBC A,B */
@@ -3803,7 +3929,7 @@ static t_stat sim_instr_mmu (void) {
 
             case 0xbf:          /* CP A */
                 tStates += 4;   /* CMP A 4 */
-                SET_LOW_REGISTER(AF, (HIGH_REGISTER(AF) & 0x28) | (chiptype == CHIP_TYPE_Z80 ? 0x42 : 0x56));
+                SET_LOW_REGISTER(AF, (HIGH_REGISTER(AF) & 0x28) | (((chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180)) ? 0x42 : 0x56));
                 break;
 
             case 0xc0:      /* RET NZ */
@@ -5033,6 +5159,272 @@ static t_stat sim_instr_mmu (void) {
                 INCR(1);
                 switch (RAM_PP(PC)) {
 
+                    case 0x00:      /* IN0 B,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_HIGH_REGISTER(BC, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x08:      /* IN0 C,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_LOW_REGISTER(BC, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x10:      /* IN0 D,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_HIGH_REGISTER(DE, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x18:      /* IN0 E,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_LOW_REGISTER(DE, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x20:      /* IN0 H,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_HIGH_REGISTER(HL, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x28:      /* IN0 L,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_LOW_REGISTER(HL, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x38:      /* IN0 A,(nn) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 12;
+                            temp = in(RAM_PP(PC));
+                            SET_HIGH_REGISTER(AF, temp);
+                            AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x01:      /* OUT0 (nn),B */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), HIGH_REGISTER(BC));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x09:      /* OUT0 (nn),C */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), LOW_REGISTER(BC));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x11:      /* OUT0 (nn),D */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), HIGH_REGISTER(DE));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x19:      /* OUT0 (nn),E */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), LOW_REGISTER(DE));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x21:      /* OUT0 (nn),H */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), HIGH_REGISTER(HL));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x29:      /* OUT0 (nn),L */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), LOW_REGISTER(HL));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x39:      /* OUT0 (nn),A */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 13;
+                            out(RAM_PP(PC), HIGH_REGISTER(AF));
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x04:          /* TST B */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF & BC) >> 8) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x0c:          /* TST C */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF >> 8) & BC) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x14:          /* TST D */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF & DE) >> 8) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x1c:          /* TST E */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF >> 8) & DE) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x24:          /* TST H */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF & HL) >> 8) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x2c:          /* TST L */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF >> 8) & HL) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x34:          /* TST (HL) */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            CHECK_BREAK_BYTE(HL);
+                            AF = andTable[((AF >> 8) & GetBYTE(HL)) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x3c:          /* TST A */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[(AF >> 8) & 0xff]; 
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else CHECK_CPU_Z80;
+                        break;
+
+                    case 0x64:          /* TST nn */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            tStates += 10;
+                            AF = andTable[((AF >> 8) & RAM_PP(PC)) & 0xff];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        } else { /* NEG, unofficial */
+                            tStates += 8;
+                            temp = HIGH_REGISTER(AF);
+                            AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
+                            AF |= ((AF >> 8) & 0xa8) | (((AF & 0xff00) == 0) << 6) | negTable[temp];
+                        }
+                        break;
+
+                    case 0x74:          /* TSTIO n */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            uint8 tmpA = HIGH_REGISTER(AF);
+                            temp = in(LOW_REGISTER(BC));
+                            tStates += 12;
+                            AF = andTable[temp & RAM_PP(PC)];
+                            SET_HIGH_REGISTER(AF, tmpA);
+                        }
+                        else { /* NEG, unofficial */
+                            tStates += 8;
+                            temp = HIGH_REGISTER(AF);
+                            AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
+                            AF |= ((AF >> 8) & 0xa8) | (((AF & 0xff00) == 0) << 6) | negTable[temp];
+                        }
+                        break;
+
+                    case 0x4c:          /* MLT BC */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 17;
+                            BC = HIGH_REGISTER(BC) * LOW_REGISTER(BC);
+                        } else { /* NEG, unofficial */
+                            tStates += 8;
+                            temp = HIGH_REGISTER(AF);
+                            AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
+                            AF |= ((AF >> 8) & 0xa8) | (((AF & 0xff00) == 0) << 6) | negTable[temp];
+                        }
+                        break;
+
+                    case 0x5c:          /* MLT DE */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 17;
+                            DE = HIGH_REGISTER(DE) * LOW_REGISTER(DE);
+                        }
+                        else { /* NEG, unofficial */
+                            tStates += 8;
+                            temp = HIGH_REGISTER(AF);
+                            AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
+                            AF |= ((AF >> 8) & 0xa8) | (((AF & 0xff00) == 0) << 6) | negTable[temp];
+                        }
+                        break;
+
+                    case 0x6c:          /* MLT HL */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 17;
+                            HL = HIGH_REGISTER(HL) * LOW_REGISTER(HL);
+                        }
+                        else { /* NEG, unofficial */
+                            tStates += 8;
+                            temp = HIGH_REGISTER(AF);
+                            AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
+                            AF |= ((AF >> 8) & 0xa8) | (((AF & 0xff00) == 0) << 6) | negTable[temp];
+                        }
+                        break;
+
+                    case 0x7c:          /* MLT SP */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            tStates += 17;
+                            SP = HIGH_REGISTER(SP) * LOW_REGISTER(SP);
+                        }
+                        else { /* NEG, unofficial */
+                            tStates += 8;
+                            temp = HIGH_REGISTER(AF);
+                            AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
+                            AF |= ((AF >> 8) & 0xa8) | (((AF & 0xff00) == 0) << 6) | negTable[temp];
+                        }
+                        break;
+
                     case 0x40:      /* IN B,(C) */
                         tStates += 12;
                         temp = in(LOW_REGISTER(BC));
@@ -5065,19 +5457,8 @@ static t_stat sim_instr_mmu (void) {
 
                     case 0x44:      /* NEG */
 
-                    case 0x4C:      /* NEG, unofficial */
-
                     case 0x54:      /* NEG, unofficial */
 
-                    case 0x5C:      /* NEG, unofficial */
-
-                    case 0x64:      /* NEG, unofficial */
-
-                    case 0x6C:      /* NEG, unofficial */
-
-                    case 0x74:      /* NEG, unofficial */
-
-                    case 0x7C:      /* NEG, unofficial */
                         tStates += 8;
                         temp = HIGH_REGISTER(AF);
                         AF = ((~(AF & 0xff00) + 1) & 0xff00); /* AF = (-(AF & 0xff00) & 0xff00); */
@@ -5349,6 +5730,12 @@ static t_stat sim_instr_mmu (void) {
                         AF = (AF & ~0xfe) | rotateShiftTable[temp & 0xff];
                         break;
 
+                    case 0x76:      /* SLP */
+                        if (chiptype == CHIP_TYPE_Z180) {
+                            sim_printf(ADDRESS_FORMAT " SLP needs implementation.\n", PCX);
+                        }
+                        else CHECK_CPU_Z80;
+                        break;
                     case 0x79:      /* OUT (C),A */
                         tStates += 12;
                         out(LOW_REGISTER(BC), HIGH_REGISTER(AF));
@@ -5422,6 +5809,13 @@ static t_stat sim_instr_mmu (void) {
     flags is set like the parity of k bitwise and'ed with 7, bitwise xor'ed with B.
     HF and CF Both set if ((HL) + L > 255)
     PF The parity of ((((HL) + L) & 7) xor B)                                       */
+                    case 0x83:      /* OTIM */
+                        if (chiptype != CHIP_TYPE_Z180) {
+                            CHECK_CPU_Z80; 
+                            break;
+                        }
+                        tStates -= 2;   /* 14 T-states for OTIM vs 16 for OUTI */
+                        /* fall through */
                     case 0xa3:      /* OUTI */
                         tStates += 16;
                         CHECK_BREAK_BYTE(HL);
@@ -5474,6 +5868,13 @@ static t_stat sim_instr_mmu (void) {
                         INOUTFLAGS_NONZERO((LOW_REGISTER(BC) - 1) & 0xff);
                         break;
 
+                    case 0x8b:      /* OTDM */
+                        if (chiptype != CHIP_TYPE_Z180) {
+                            CHECK_CPU_Z80;
+                            break;
+                        }
+                        tStates -= 2;   /* 14 T-states for OTIM vs 16 for OUTI */
+                        /* fall through */
                     case 0xab:      /* OUTD */
                         tStates += 16;
                         CHECK_BREAK_BYTE(HL);
@@ -5540,6 +5941,13 @@ static t_stat sim_instr_mmu (void) {
                         INOUTFLAGS_ZERO((LOW_REGISTER(BC) + 1) & 0xff);
                         break;
 
+                    case 0x93:      /* OTIMR */
+                        if (chiptype != CHIP_TYPE_Z180) {
+                            CHECK_CPU_Z80;
+                            break;
+                        }
+                        tStates -= 2;   /* 14 T-states for OTIM vs 16 for OUTI */
+                        /* fall through */
                     case 0xb3:      /* OTIR */
                         tStates -= 5;
                         temp = HIGH_REGISTER(BC);
@@ -5613,6 +6021,13 @@ static t_stat sim_instr_mmu (void) {
                         INOUTFLAGS_ZERO((LOW_REGISTER(BC) - 1) & 0xff);
                         break;
 
+                    case 0x9b:      /* OTDMR */
+                        if (chiptype != CHIP_TYPE_Z180) {
+                            CHECK_CPU_Z80;
+                            break;
+                        }
+                        tStates -= 2;   /* 14 T-states for OTIM vs 16 for OUTI */
+                        /* fall through */
                     case 0xbb:      /* OTDR */
                         tStates -= 5;
                         temp = HIGH_REGISTER(BC);
@@ -6474,7 +6889,7 @@ static t_stat sim_instr_mmu (void) {
         /*
         ** Save in instruction history ring buffer
         */
-        if (hst_lnt && ((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80))) {
+        if (hst_lnt && ((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180))) {
             hst[hst_p].valid = 1;
             hst[hst_p].pc = PCX;
             hst[hst_p].sp = SP;
@@ -6559,6 +6974,7 @@ static t_stat cpu_reset(DEVICE *dptr) {
     BC1_S = DE1_S = HL1_S = 0;
     IR_S = IX_S = IY_S = SP_S = PC_S = 0;
     IM_S = IFF_S = 0;  /* Set IM0, reset IFF1 and IFF2 */
+    z180_itc = 1;
     setBankSelect(0);
     cpu8086reset();
     m68k_cpu_reset();
@@ -6581,6 +6997,7 @@ static t_bool cpu_is_pc_a_subroutine_call (t_addr **ret_addrs) {
     switch (chiptype) {
         case CHIP_TYPE_8080:
         case CHIP_TYPE_Z80:
+        case CHIP_TYPE_Z180:
             switch (GetBYTE(PC_S)) {
                 case 0xc4:  /* CALL NZ,nnnn */
                 case 0xcc:  /* CALL Z,nnnn  */
@@ -6648,7 +7065,8 @@ t_stat install_bootrom(const int32 bootrom[], const int32 size, const int32 addr
 static t_stat cpu_ex(t_value *vptr, t_addr addr, UNIT *uptr, int32 sw) {
     switch (chiptype) {
         case CHIP_TYPE_8080:
-        case CHIP_TYPE_Z80: {
+        case CHIP_TYPE_Z80:
+        case CHIP_TYPE_Z180: {
             const int32 oldBankSelect = getBankSelect();
             setBankSelect((addr >> MAXBANKSIZELOG2) & BANKMASK);
             *vptr = GetBYTE(addr & ADDRMASK);
@@ -6676,7 +7094,8 @@ static t_stat cpu_ex(t_value *vptr, t_addr addr, UNIT *uptr, int32 sw) {
 static t_stat cpu_dep(t_value val, t_addr addr, UNIT *uptr, int32 sw) {
     switch (chiptype) {
         case CHIP_TYPE_8080:
-        case CHIP_TYPE_Z80: {
+        case CHIP_TYPE_Z80:
+        case CHIP_TYPE_Z180: {
             const int32 oldBankSelect = getBankSelect();
             setBankSelect((addr >> MAXBANKSIZELOG2) & BANKMASK);
             PutBYTE(addr & ADDRMASK, val);
@@ -6760,7 +7179,7 @@ const static CPUFLAG *cpuflags[NUM_CHIP_TYPE] = { cpuflags8080, cpuflagsZ80,
     cpuflags8086, cpuflagsM68K, };
 
 /* needs to be set for each ramtype <= MAX_RAM_TYPE */
-static const char *ramTypeToString[] = { "AZ80", "HRAM", "VRAM", "CRAM", "B810" };
+static const char *ramTypeToString[] = { "AZ80", "Z180", "HRAM", "VRAM", "CRAM", "B810" };
 
 static const char* m68kVariantToString[] = {
     "INVALID",
@@ -6885,7 +7304,7 @@ static t_stat cpu_set_nommu(UNIT *uptr, int32 value, CONST char *cptr, void *des
         sim_printf("Cannot switch off MMU for banked memory.\n");
         return SCPE_ARG;
     }
-    if (((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80)) &&
+    if (((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180)) &&
             (MEMORYSIZE < MAXBANKSIZE)) {
         sim_printf("Cannot switch off MMU when memory is %iKB < %iKB.\n",
             MEMORYSIZE >> KBLOG2, MAXBANKSIZE >> KBLOG2);
@@ -6895,7 +7314,7 @@ static t_stat cpu_set_nommu(UNIT *uptr, int32 value, CONST char *cptr, void *des
 }
 
 static t_stat cpu_set_banked(UNIT *uptr, int32 value, CONST char *cptr, void *desc) {
-    if ((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80)) {
+    if ((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180)) {
         if (MEMORYSIZE <= MAXBANKSIZE)
             previousCapacity = MEMORYSIZE;
         MEMORYSIZE = MAXMEMORY;
@@ -6909,7 +7328,7 @@ static t_stat cpu_set_banked(UNIT *uptr, int32 value, CONST char *cptr, void *de
 }
 
 static t_stat cpu_set_nonbanked(UNIT *uptr, int32 value, CONST char *cptr, void *desc) {
-    if ((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80)) {
+    if ((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180)) {
         MEMORYSIZE = previousCapacity;
         cpu_dev.awidth = MAXBANKSIZELOG2;
         cpu_clear(TRUE);
@@ -6917,6 +7336,9 @@ static t_stat cpu_set_nonbanked(UNIT *uptr, int32 value, CONST char *cptr, void 
     return SCPE_OK;
 }
 
+static const char* mmuRegToString[] = { "CBR", "BBR", "CBAR", "Reserved", "Reserved1", "Reserved2", "OMCR", "ICR" };
+
+extern int32 z180iodev(const int32 port, const int32 io, const int32 data);
 static int32 bankseldev(const int32 port, const int32 io, const int32 data) {
     if (io) {
         switch(ramtype) {
@@ -7000,6 +7422,7 @@ static int32 bankseldev(const int32 port, const int32 io, const int32 data) {
                     sim_printf("Invalid bank select 0x%02x for B810\n", data);
                 }
                 break;
+            case RAM_TYPE_Z180: /* handled in z180_io.c */
             case RAM_TYPE_AZ80:
             default:
                 break;
@@ -7013,8 +7436,9 @@ static int32 bankseldev(const int32 port, const int32 io, const int32 data) {
 static void cpu_set_chiptype_short(const int32 value) {
     if ((chiptype == value) || (value < 0) || (value >= NUM_CHIP_TYPE))
         return; /* nothing to do */
-    if (((chiptype == CHIP_TYPE_8080) && (value == CHIP_TYPE_Z80)) ||
-        ((chiptype == CHIP_TYPE_Z80) && (value == CHIP_TYPE_8080))) {
+    if (((chiptype == CHIP_TYPE_8080) && ((value == CHIP_TYPE_Z80) || (value == CHIP_TYPE_Z180))) ||
+        ((chiptype == CHIP_TYPE_Z80) && ((value == CHIP_TYPE_8080) || (value == CHIP_TYPE_Z180))) ||
+        ((chiptype == CHIP_TYPE_Z180) && ((value == CHIP_TYPE_8080) || (value == CHIP_TYPE_Z80)))) {
         chiptype = (ChipType)value;
         return;
     }
@@ -7022,6 +7446,7 @@ static void cpu_set_chiptype_short(const int32 value) {
     switch (chiptype) {
         case CHIP_TYPE_8080:
         case CHIP_TYPE_Z80:
+        case CHIP_TYPE_Z180:
             MEMORYSIZE = previousCapacity;
             cpu_dev.awidth = MAXBANKSIZELOG2;
             sim_PC = &cpu_reg[CPU_INDEX_8080];
@@ -7123,6 +7548,8 @@ static t_stat cpu_set_ramtype(UNIT *uptr, int32 value, CONST char *cptr, void *d
     }
 
     switch(ramtype) {
+        case RAM_TYPE_Z180:
+            break;
         case RAM_TYPE_HRAM:
             if (cpu_unit.flags & UNIT_CPU_VERBOSE)
                 sim_printf("Unmapping NorthStar HRAM\n");
@@ -7151,6 +7578,8 @@ static t_stat cpu_set_ramtype(UNIT *uptr, int32 value, CONST char *cptr, void *d
     }
 
     switch(value) {
+        case RAM_TYPE_Z180:
+            break;
         case RAM_TYPE_HRAM:
             if (cpu_unit.flags & UNIT_CPU_VERBOSE)
                 sim_printf("NorthStar HRAM Selected\n");
@@ -7190,7 +7619,7 @@ static t_stat set_size(uint32 size, t_bool unmap) {
             sim_printf("Setting memory size to %ikB ignored for M68K.\n", size);
         return SCPE_OK;
     }
-    maxsize = (((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80)) &&
+    maxsize = (((chiptype == CHIP_TYPE_8080) || (chiptype == CHIP_TYPE_Z80) || (chiptype == CHIP_TYPE_Z180)) &&
                ((cpu_unit.flags & UNIT_CPU_BANKED) == 0)) ? MAXBANKSIZE : MAXMEMORY;
     size <<= KBLOG2;
     if (cpu_unit.flags & UNIT_CPU_BANKED)
@@ -7257,7 +7686,7 @@ static t_stat cpu_set_hist(UNIT *uptr, int32 val, CONST char *cptr, void *desc) 
     uint32 i, lnt;
     t_stat r;
 
-    if ((chiptype >= 0) && (chiptype != CHIP_TYPE_8080) && (chiptype != CHIP_TYPE_Z80)) {
+    if ((chiptype >= 0) && (chiptype != CHIP_TYPE_8080) && (chiptype != CHIP_TYPE_Z80) && (chiptype != CHIP_TYPE_Z180)) {
         sim_printf("History not supported for chiptype: %s\n",
                (chiptype < NUM_CHIP_TYPE) ? cpu_mod[chiptype].mstring : "????");
         return SCPE_NOFNC;
@@ -7323,7 +7752,7 @@ t_stat cpu_show_hist (FILE *st, UNIT *uptr, int32 val, CONST void *desc)
     t_stat r;
     insthist_t *h;
 
-    if ((chiptype != CHIP_TYPE_8080) && (chiptype != CHIP_TYPE_Z80)) {
+    if ((chiptype != CHIP_TYPE_8080) && (chiptype != CHIP_TYPE_Z80) && (chiptype != CHIP_TYPE_Z180)) {
         sim_printf("History not supported for chiptype: %s\n",
             (0 <= chiptype) && (chiptype < NUM_CHIP_TYPE) ?
             cpu_mod[chiptype].mstring : "????");
@@ -7659,8 +8088,8 @@ static t_stat cpu_cmd_reg(int32 flag, CONST char *cptr)
     t_value op[INST_MAX_BYTES];
     int i;
 
-    if (chiptype != CHIP_TYPE_8080 && chiptype != CHIP_TYPE_Z80) {
-        sim_printf("REG requires 8080 or Z80 CPU\n");
+    if (chiptype != CHIP_TYPE_8080 && chiptype != CHIP_TYPE_Z80 && chiptype != CHIP_TYPE_Z180) {
+        sim_printf("REG requires 8080, Z80 or Z180 CPU\n");
         return SCPE_NOFNC;
     }
 
