@@ -1905,11 +1905,15 @@ ALTAIRZ80 = ${ALTAIRZ80D}/altairz80_cpu.c ${ALTAIRZ80D}/altairz80_cpu_nommu.c \
 	${ALTAIRZ80D}/altairz80_sio.c ${ALTAIRZ80D}/altairz80_sys.c \
 	${ALTAIRZ80D}/altairz80_hdsk.c ${ALTAIRZ80D}/altairz80_net.c \
 	${ALTAIRZ80D}/s100_hayes.c ${ALTAIRZ80D}/s100_2sio.c ${ALTAIRZ80D}/s100_pmmi.c\
+	${ALTAIRZ80D}/flash.c \
 	${ALTAIRZ80D}/flashwriter2.c ${ALTAIRZ80D}/i86_decode.c \
 	${ALTAIRZ80D}/i86_ops.c ${ALTAIRZ80D}/i86_prim_ops.c \
 	${ALTAIRZ80D}/i8272.c ${ALTAIRZ80D}/insnsd.c ${ALTAIRZ80D}/altairz80_mhdsk.c \
 	${ALTAIRZ80D}/ibc.c ${ALTAIRZ80D}/ibc_mcc_hdc.c ${ALTAIRZ80D}/ibc_smd_hdc.c \
 	${ALTAIRZ80D}/mfdc.c ${ALTAIRZ80D}/n8vem.c ${ALTAIRZ80D}/vfdhd.c \
+	${ALTAIRZ80D}/rc_dsrtc.c \
+	${ALTAIRZ80D}/rc_ide.c \
+	${ALTAIRZ80D}/rc_sdcard.c \
 	${ALTAIRZ80D}/s100_disk1a.c ${ALTAIRZ80D}/s100_disk2.c ${ALTAIRZ80D}/s100_disk3.c \
 	${ALTAIRZ80D}/s100_fif.c ${ALTAIRZ80D}/s100_mdriveh.c \
 	${ALTAIRZ80D}/s100_icom.c \
@@ -1922,6 +1926,7 @@ ALTAIRZ80 = ${ALTAIRZ80D}/altairz80_cpu.c ${ALTAIRZ80D}/altairz80_cpu_nommu.c \
 	${ALTAIRZ80D}/s100_tdd.c \
 	${ALTAIRZ80D}/wd179x.c ${ALTAIRZ80D}/s100_hdc1001.c \
 	${ALTAIRZ80D}/s100_if3.c ${ALTAIRZ80D}/s100_adcs6.c \
+	${ALTAIRZ80D}/z180asci.c \
 	${ALTAIRZ80D}/z180io.c \
 	${ALTAIRZ80D}/m68k/m68kcpu.c ${ALTAIRZ80D}/m68k/m68kdasm.c ${ALTAIRZ80D}/m68k/m68kasm.c \
 	${ALTAIRZ80D}/m68k/m68kopac.c ${ALTAIRZ80D}/m68k/m68kopdm.c \
