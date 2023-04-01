@@ -230,6 +230,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\AltairZ80\flash.c"
+				>
+			</File>
+			<File
 				RelativePath="..\AltairZ80\flashwriter2.c"
 				>
 			</File>
@@ -308,6 +312,18 @@
 			</File>
 			<File
 				RelativePath="..\AltairZ80\n8vem.c"
+				>
+			</File>
+			<File
+				RelativePath="..\AltairZ80\rc_dsrtc.c"
+				>
+			</File>
+			<File
+				RelativePath="..\AltairZ80\rc_ide.c"
+				>
+			</File>
+			<File
+				RelativePath="..\AltairZ80\rc_sdcard.c"
 				>
 			</File>
 			<File
@@ -476,6 +492,14 @@
 			</File>
 			<File
 				RelativePath="..\AltairZ80\wd179x.c"
+				>
+			</File>
+			<File
+				RelativePath="..\AltairZ80\z180asci.c"
+				>
+			</File>
+			<File
+				RelativePath="..\AltairZ80\z180io.c"
 				>
 			</File>
 		</Filter>
