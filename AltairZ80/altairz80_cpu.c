@@ -46,6 +46,8 @@
 #define IFF1    1                               /* Interrupt flip-flop 1 */
 #define IFF2    2                               /* Interrupt flip-flop 2 */
 
+#define ITC_TRAP        (1 << 7)                /* Z180 ITC Trap */
+
 #define FLAG_C  1
 #define FLAG_N  2
 #define FLAG_P  4
@@ -123,6 +125,17 @@
         tStates += (chiptype == CHIP_TYPE_8080 ? 11 : 10);  \
     }                                                       \
 }
+
+#define RST0_IF_Z180() \
+    if (chiptype == CHIP_TYPE_Z180) {                       \
+        tStates += 11;  /* RST 0 11 */                      \
+        CHECK_BREAK_WORD(SP - 2);                           \
+        PUSH(PC-1);                                         \
+        PCQ_ENTRY(PCX);                                     \
+        z180_itc |= ITC_TRAP;                               \
+        PC = 0;                                             \
+        break;                                              \
+    }
 
 /* increase R by val */
 #define INCR(val) IR_S = (IR_S & ~0x7f) | ((IR_S + (val)) & 0x7f)
@@ -1964,8 +1977,8 @@ static void PutBYTE(register uint32 Addr, const register uint32 Value) {
         }
         else {
             /* Address is in Common Area 0 */
-            sim_printf("%s: CA0 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x\n",
-                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+//            sim_printf("%s: CA0 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x\n",
+//                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
         }
     }
     m = mmu_table[Addr >> LOG2PAGESIZE];
@@ -2030,8 +2043,8 @@ static uint32 GetBYTE(register uint32 Addr) {
         }
         else {
             /* Address is in Common Area 0 */
-            sim_printf("%s: CA0 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x\n",
-                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
+//            sim_printf("%s: CA0 CBAR: 0x%02x, CBR: 0x%02x, BBR: 0x%02x, Addr: 0x%04x\n",
+//                __FUNCTION__, z180_cbar, z180_cbr, z180_bbr, Addr);
         }
     }
     m = mmu_table[Addr >> LOG2PAGESIZE];
@@ -3977,7 +3990,8 @@ static t_stat sim_instr_mmu (void) {
                                 cbits = acu & 1;
                                 goto cbshflg1;
 
-                            case 0x30:  /* SLIA */
+                            case 0x30:  /* SLIA (SLL) */
+                                RST0_IF_Z180()
                                 temp = (acu << 1) | 1;
                                 cbits = acu & 0x80;
                                 goto cbshflg1;
@@ -4228,18 +4242,21 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x24:      /* INC IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         IX += 0x100;
                         AF = (AF & ~0xfe) | incZ80Table[HIGH_REGISTER(IX)];
                         break;
 
                     case 0x25:      /* DEC IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         IX -= 0x100;
                         AF = (AF & ~0xfe) | decZ80Table[HIGH_REGISTER(IX)];
                         break;
 
                     case 0x26:      /* LD IXH,nn */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, RAM_PP(PC));
                         break;
@@ -4266,6 +4283,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x2c:      /* INC IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IX) + 1;
                         SET_LOW_REGISTER(IX, temp);
@@ -4273,6 +4291,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x2d:      /* DEC IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IX) - 1;
                         SET_LOW_REGISTER(IX, temp);
@@ -4280,6 +4299,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x2e:      /* LD IXL,nn */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, RAM_PP(PC));
                         break;
@@ -4319,11 +4339,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x44:      /* LD B,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(BC, HIGH_REGISTER(IX));
                         break;
 
                     case 0x45:      /* LD B,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(BC, LOW_REGISTER(IX));
                         break;
@@ -4336,11 +4358,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x4c:      /* LD C,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(BC, HIGH_REGISTER(IX));
                         break;
 
                     case 0x4d:      /* LD C,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(BC, LOW_REGISTER(IX));
                         break;
@@ -4353,11 +4377,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x54:      /* LD D,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(DE, HIGH_REGISTER(IX));
                         break;
 
                     case 0x55:      /* LD D,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(DE, LOW_REGISTER(IX));
                         break;
@@ -4370,11 +4396,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x5c:      /* LD E,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(DE, HIGH_REGISTER(IX));
                         break;
 
                     case 0x5d:      /* LD E,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(DE, LOW_REGISTER(IX));
                         break;
@@ -4387,30 +4415,36 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x60:      /* LD IXH,B */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, HIGH_REGISTER(BC));
                         break;
 
                     case 0x61:      /* LD IXH,C */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, LOW_REGISTER(BC));
                         break;
 
                     case 0x62:      /* LD IXH,D */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, HIGH_REGISTER(DE));
                         break;
 
                     case 0x63:      /* LD IXH,E */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, LOW_REGISTER(DE));
                         break;
 
                     case 0x64:      /* LD IXH,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         break;
 
                     case 0x65:      /* LD IXH,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, LOW_REGISTER(IX));
                         break;
@@ -4423,36 +4457,43 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x67:      /* LD IXH,A */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IX, HIGH_REGISTER(AF));
                         break;
 
                     case 0x68:      /* LD IXL,B */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, HIGH_REGISTER(BC));
                         break;
 
                     case 0x69:      /* LD IXL,C */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, LOW_REGISTER(BC));
                         break;
 
                     case 0x6a:      /* LD IXL,D */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, HIGH_REGISTER(DE));
                         break;
 
                     case 0x6b:      /* LD IXL,E */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, LOW_REGISTER(DE));
                         break;
 
                     case 0x6c:      /* LD IXL,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, HIGH_REGISTER(IX));
                         break;
 
                     case 0x6d:      /* LD IXL,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         break;
 
@@ -4464,6 +4505,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x6f:      /* LD IXL,A */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IX, HIGH_REGISTER(AF));
                         break;
@@ -4518,11 +4560,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x7c:      /* LD A,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(AF, HIGH_REGISTER(IX));
                         break;
 
                     case 0x7d:      /* LD A,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(AF, LOW_REGISTER(IX));
                         break;
@@ -4535,6 +4579,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x84:      /* ADD A,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = HIGH_REGISTER(IX);
                         acu = HIGH_REGISTER(AF);
@@ -4543,6 +4588,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x85:      /* ADD A,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IX);
                         acu = HIGH_REGISTER(AF);
@@ -4561,6 +4607,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x8c:      /* ADC A,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = HIGH_REGISTER(IX);
                         acu = HIGH_REGISTER(AF);
@@ -4569,6 +4616,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x8d:      /* ADC A,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IX);
                         acu = HIGH_REGISTER(AF);
@@ -4597,9 +4645,11 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x94:      /* SUB IXH */
+                        RST0_IF_Z180();
                         SETFLAG(C, 0);/* fall through, a bit less efficient but smaller code */
 
                     case 0x9c:      /* SBC A,IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = HIGH_REGISTER(IX);
                         acu = HIGH_REGISTER(AF);
@@ -4608,9 +4658,11 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x95:      /* SUB IXL */
+                        RST0_IF_Z180();
                         SETFLAG(C, 0);/* fall through, a bit less efficient but smaller code */
 
                     case 0x9d:      /* SBC A,IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IX);
                         acu = HIGH_REGISTER(AF);
@@ -4629,11 +4681,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0xa4:      /* AND IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         AF = andTable[((AF & IX) >> 8) & 0xff];
                         break;
 
                     case 0xa5:      /* AND IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         AF = andTable[((AF >> 8) & IX) & 0xff];
                         break;
@@ -4646,11 +4700,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0xac:      /* XOR IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         AF = xororTable[((AF ^ IX) >> 8) & 0xff];
                         break;
 
                     case 0xad:      /* XOR IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         AF = xororTable[((AF >> 8) ^ IX) & 0xff];
                         break;
@@ -4663,11 +4719,13 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0xb4:      /* OR IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         AF = xororTable[((AF | IX) >> 8) & 0xff];
                         break;
 
                     case 0xb5:      /* OR IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         AF = xororTable[((AF >> 8) | IX) & 0xff];
                         break;
@@ -4680,6 +4738,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0xbc:      /* CP IXH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = HIGH_REGISTER(IX);
                         AF = (AF & ~0x28) | (temp & 0x28);
@@ -4690,6 +4749,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0xbd:      /* CP IXL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IX);
                         AF = (AF & ~0x28) | (temp & 0x28);
@@ -4895,6 +4955,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     default:        /* ignore DD */
+                        RST0_IF_Z180();
                         CHECK_CPU_Z80;
                         PC--;
                 }
@@ -6057,18 +6118,21 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x24:      /* INC IYH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         IY += 0x100;
                         AF = (AF & ~0xfe) | incZ80Table[HIGH_REGISTER(IY)];
                         break;
 
                     case 0x25:      /* DEC IYH */
+                        RST0_IF_Z180();
                         tStates += 9;
                         IY -= 0x100;
                         AF = (AF & ~0xfe) | decZ80Table[HIGH_REGISTER(IY)];
                         break;
 
                     case 0x26:      /* LD IYH,nn */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_HIGH_REGISTER(IY, RAM_PP(PC));
                         break;
@@ -6095,6 +6159,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x2c:      /* INC IYL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IY) + 1;
                         SET_LOW_REGISTER(IY, temp);
@@ -6102,6 +6167,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x2d:      /* DEC IYL */
+                        RST0_IF_Z180();
                         tStates += 9;
                         temp = LOW_REGISTER(IY) - 1;
                         SET_LOW_REGISTER(IY, temp);
@@ -6109,6 +6175,7 @@ static t_stat sim_instr_mmu (void) {
                         break;
 
                     case 0x2e:      /* LD IYL,nn */
+                        RST0_IF_Z180();
                         tStates += 9;
                         SET_LOW_REGISTER(IY, RAM_PP(PC));
                         break;
