@@ -107,6 +107,7 @@ extern DEVICE djhdc_dev;
 
 extern DEVICE z180io_dev;
 extern DEVICE z180asci_dev;
+extern DEVICE rc_dsrtc_dev;
 extern DEVICE rc_ide_dev;
 extern DEVICE rc_sdcard_dev;
 extern DEVICE flash_dev;
@@ -203,6 +204,7 @@ DEVICE      *sim_devices[]  = {
     /* Zilog Z180 */
     &z180io_dev,
     &z180asci_dev,
+    &rc_dsrtc_dev,
     &rc_ide_dev,
     &rc_sdcard_dev,
     &flash_dev,
