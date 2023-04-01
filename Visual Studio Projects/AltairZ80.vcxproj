@@ -246,6 +246,7 @@
     <ClCompile Include="..\AltairZ80\altairz80_sio.c" />
     <ClCompile Include="..\AltairZ80\altairz80_sys.c" />
     <ClCompile Include="..\AltairZ80\disasm.c" />
+    <ClCompile Include="..\AltairZ80\flash.c" />
     <ClCompile Include="..\AltairZ80\flashwriter2.c" />
     <ClCompile Include="..\AltairZ80\i8272.c" />
     <ClCompile Include="..\AltairZ80\i86_decode.c" />
@@ -267,6 +268,9 @@
     <ClCompile Include="..\AltairZ80\mfdc.c" />
     <ClCompile Include="..\AltairZ80\mmd.c" />
     <ClCompile Include="..\AltairZ80\n8vem.c" />
+    <ClCompile Include="..\AltairZ80\rc_dsrtc.c" />
+    <ClCompile Include="..\AltairZ80\rc_ide.c" />
+    <ClCompile Include="..\AltairZ80\rc_sdcard.c" />
     <ClCompile Include="..\AltairZ80\s100_2sio.c" />
     <ClCompile Include="..\AltairZ80\s100_64fdc.c" />
     <ClCompile Include="..\AltairZ80\s100_adcs6.c" />
@@ -297,6 +301,8 @@
     <ClCompile Include="..\AltairZ80\sol20.c" />
     <ClCompile Include="..\AltairZ80\vfdhd.c" />
     <ClCompile Include="..\AltairZ80\wd179x.c" />
+    <ClCompile Include="..\AltairZ80\z180asci.c" />
+    <ClCompile Include="..\AltairZ80\z180io.c" />
     <ClCompile Include="..\scp.c" />
     <ClCompile Include="..\sim_console.c" />
     <ClCompile Include="..\sim_disk.c" />
