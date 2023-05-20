@@ -35,6 +35,7 @@ add_simulator(altairz80
         s100_hayes.c
         s100_2sio.c
         s100_pmmi.c
+        flash.c
         flashwriter2.c
         i86_decode.c
         i86_ops.c
@@ -48,6 +49,9 @@ add_simulator(altairz80
         mfdc.c
         n8vem.c
         vfdhd.c
+        rc_dsrtc.c
+        rc_ide.c
+        rc_sdcard.c
         s100_disk1a.c
         s100_disk2.c
         s100_disk3.c
