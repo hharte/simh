@@ -434,12 +434,12 @@ t_stat dsk_attach(UNIT *uptr, CONST char *cptr)
 
         if (uptr->up7 == flex_flag_str) {
                 sim_printf("dsk_attach: Reading disk geometry from SIR of Flex disk named %s\n", cptr);
-                sim_debug(DEBUG_flow, &dsk_dev, "dsk_attach: Reading disk geometry from SIR of Flex disk name %d\n", cptr);
+                sim_debug(DEBUG_flow, &dsk_dev, "dsk_attach: Reading disk geometry from SIR of Flex disk name %s\n", cptr);
 
 	        // whenever a new file is attached - re-read the SIR
                 pos = 0x200;       /* Location of Flex System Information Record (SIR) */
 
-                sim_debug(DEBUG_read, &dsk_dev, "dsk_attach: Read pos = %ld ($%04X)\n", pos, (unsigned int) pos);
+                sim_debug(DEBUG_read, &dsk_dev, "dsk_attach: Read pos = %d ($%04X)\n", pos, (unsigned int) pos);
                 err = sim_fseek(uptr->fileref, pos, SEEK_SET); /* seek to offset */
                 if (err) {
                     sim_debug(DEBUG_read, &dsk_dev, "dsk_attach: Seek error read in SIR\n");
@@ -460,8 +460,8 @@ t_stat dsk_attach(UNIT *uptr, CONST char *cptr)
                 /* zero based track numbering */
                 temp_cpd++;
 
-                sim_printf("dsk_attach: SIR was read. SPT=%d. CPD=%d. Capacity=%d\n", temp_spt, temp_cpd, fsize);
-                sim_debug(DEBUG_flow, &dsk_dev, "dsk_attach: SIR was read. SPT=%d. CPD=%d. Capacity=%d\n", temp_spt, temp_cpd, fsize);
+                sim_printf("dsk_attach: SIR was read. SPT=%d. CPD=%d. Capacity=%lld\n", temp_spt, temp_cpd, fsize);
+                sim_debug(DEBUG_flow, &dsk_dev, "dsk_attach: SIR was read. SPT=%d. CPD=%d. Capacity=%lld\n", temp_spt, temp_cpd, fsize);
 
                 /* confirm that geometry aligns with size */
                 if (fsize == (temp_cpd * temp_spt * SECTOR_SIZE)) {
@@ -639,12 +639,12 @@ int32 fdccmd(int32 io, int32 data)
         /* write command to fdc */
 	if ((dsk_unit[cur_dsk].u3 & BUSY) != 0) {
             /* do not write to command register if device is BUSY */
-            sim_debug(DEBUG_write, &dsk_dev, "fdccmd: Cannot write to command register, device is BUSY\n", cur_dsk);
+            sim_debug(DEBUG_write, &dsk_dev, "fdccmd: Cannot write to command register, device %d is BUSY\n", cur_dsk);
             return(SCPE_OK);
         }
 	if ((dsk_unit[cur_dsk].u3 & NOTRDY) != 0) {
             /* do not write to command register if device is NOTRDY */
-            sim_debug(DEBUG_write, &dsk_dev, "fdccmd: Cannot write to command register, device is NOT READY\n", cur_dsk);
+            sim_debug(DEBUG_write, &dsk_dev, "fdccmd: Cannot write to command register, device %d is NOT READY\n", cur_dsk);
             return(SCPE_OK);
         }
 
@@ -795,7 +795,7 @@ int32 fdccmd(int32 io, int32 data)
 
             default:
                 sim_printf("Unknown or unimplemented FDC command %02XH\n", data);
-                sim_debug(DEBUG_write, &dsk_dev, "fdccmd: Unknown or unimplemented command %02X\n", cur_dsk, data);
+                sim_debug(DEBUG_write, &dsk_dev, "fdccmd: Unknown or unimplemented command %02X\n", data);
         }
         return(SCPE_OK);
 

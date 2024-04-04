@@ -1295,7 +1295,7 @@ t_stat sim_instr (void)
                 break;
 
             case 0x3C:                  /* CWAI */
-		/* AND immediate byte with CCR
+		/* AND immediate byte with CCR */
 		CCR &= get_imm_byte_val();
 		SET_FLAG(EF);
                 /* push register state */
